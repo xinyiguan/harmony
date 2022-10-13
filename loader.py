@@ -1,8 +1,11 @@
 import typing
 from dataclasses import dataclass
 import os
+from glob import glob
 
+import numpy as np
 import pandas as pd
+from scipy.stats import entropy as scipyentropy
 
 
 class PieceInfo:
@@ -24,6 +27,7 @@ class CorpusInfo:
     def __post_init__(self):
         self.metadata = self.get_metadata()
         self.corpus_harmonies_df = self.get_corpus_harmonies_df()
+        self.corpus_harmonies_meta_df = self.get_corpus_harmonies_df(attach_metadata=True)
 
     def get_metadata(self) -> pd.DataFrame:
         metadata_tsv_path = self.corpus_path + 'metadata.tsv'
@@ -34,78 +38,109 @@ class CorpusInfo:
         metadata['corpus'] = corpus_name_list
         return metadata
 
-    # def get_corpus_harmonies_df(self, attach_metadata: bool = False) -> pd.DataFrame:
-    #
-    #     harmonies_folder_path = self.corpus_path + 'harmonies/'
-    #     harmonies_tsv_list = [f for f in os.listdir(harmonies_folder_path)]
-    #     fnames_list = [f.replace('.tsv', '') for f in harmonies_tsv_list]
-    #     full_harmonies_tsv_paths_list = [harmonies_folder_path + item for item in harmonies_tsv_list]
-    #
-    #     if attach_metadata:
-    #         metadata_df = corpus.metadata[['fnames', 'composed_end', 'key','mode']] # attach these meta info into each
-    #         metadata_df= metadata_df.set_index('fnames')
-    #
-    #         pd_list = []
-    #         for idx, fname in enumerate(fnames_list):
-    #             tsv_path = harmonies_folder_path+fname+'.tsv'
-    #             piecewise_harmonies_df = pd.read_csv(tsv_path, sep='\t')
-    #             df_length = piecewise_harmonies_df.shape[0]
-    #
-    #             if metadata_df['fnames']:
-    #             selected_metadata_row= metadata_df.loc[fname]
-    #
-    #             metadata_columns_repeated=pd.concat([selected_metadata_row]*df_length)
-    #
-    #
-    #             pd_list.append(piecewise_harmonies_df)
-    #         corpus_harmonies_df = pd.concat(pd_list)
-    #         return corpus_harmonies_df
-    #
-    #     else:
-    #         pd_list = []
-    #         for idx, tsv_path in enumerate(full_harmonies_tsv_paths_list):
-    #             piecewise_harmonies_df = pd.read_csv(tsv_path, sep='\t')
-    #             # piecewise_harmonies_df['composition_endyear']=composition_endyr[idx]
-    #             pd_list.append(piecewise_harmonies_df)
-    #         corpus_harmonies_df = pd.concat(pd_list)
-    #         return corpus_harmonies_df
+    def get_corpus_harmonies_df(self, attach_metadata: bool = False) -> pd.DataFrame:
 
-    # def get_piece_info(self) -> typing.Dict[str, PieceInfo]:
-    #     """
-    #     :return: a dictionary {fname: PieceInfo}
-    #     """
-    #     return_dict = {}
-    #     fname_list = self.metadata['fnames']
-    #     for idx, fname in fname_list:
-    #         piece_info = PieceInfo(fname)
-    #         return_dict[fname] = piece_info
-    #     return return_dict
-
-    def get_corpus_harmonies_df(self):
         harmonies_folder_path = self.corpus_path + 'harmonies/'
         harmonies_tsv_list = [f for f in os.listdir(harmonies_folder_path)]
-        print(harmonies_tsv_list)
+        fnames_list = [f.replace('.tsv', '') for f in harmonies_tsv_list]
         full_harmonies_tsv_paths_list = [harmonies_folder_path + item for item in harmonies_tsv_list]
-        pd_list = []
-        for idx, tsv_path in enumerate(full_harmonies_tsv_paths_list):
-            piecewise_harmonies_df = pd.read_csv(tsv_path, sep='\t')
-            pd_list.append(piecewise_harmonies_df)
-        corpus_harmonies_df = pd.concat(pd_list)
-        return corpus_harmonies_df
+
+        if attach_metadata:
+            metadata_df = self.metadata[
+                ['corpus', 'fnames', 'composed_end', 'annotated_key']]  # attach these meta info into each
+
+            pd_list = []
+            for idx, fname_tsv in enumerate(harmonies_tsv_list):
+                if fname_tsv.endswith('tsv'):
+                    fname = fname_tsv.replace('.tsv', '')
+                    tsv_path = harmonies_folder_path + fname + '.tsv'
+                    piecewise_harmonies_df = pd.read_csv(tsv_path, sep='\t')
+                    df_length = piecewise_harmonies_df.shape[0]
+
+                    selected_row_index = int(metadata_df[metadata_df['fnames'] == fname].index.values)
+                    selected_metadata_row = metadata_df.iloc[selected_row_index].to_frame().T
+
+                    metadata_columns_repeated = pd.DataFrame(np.repeat(selected_metadata_row.values, df_length, axis=0))
+                    metadata_columns_repeated.columns = selected_metadata_row.columns
+                    extended_df = pd.concat([piecewise_harmonies_df, metadata_columns_repeated], axis=1)
+
+                    pd_list.append(extended_df)
+                else:
+                    pass
+                corpus_harmonies_df = pd.concat(pd_list)
+                return corpus_harmonies_df
+
+        else:
+            pd_list = []
+            for idx, fname_tsv in enumerate(harmonies_tsv_list):
+                if fname_tsv.endswith('tsv'):
+                    fname = fname_tsv.replace('.tsv', '')
+                    tsv_path = harmonies_folder_path + fname + '.tsv'
+                    piecewise_harmonies_df = pd.read_csv(tsv_path, sep='\t')
+                    pd_list.append(piecewise_harmonies_df)
+                else:
+                    pass
+                corpus_harmonies_df = pd.concat(pd_list)
+                return corpus_harmonies_df
+
+    def get_harmonies_data_by_key(self, key: str) -> pd.DataFrame:
+        data = self.corpus_harmonies_meta_df[key]
+        return data
+
+    def compute_probs(self, key: str) -> pd.DataFrame:
+        data_df = self.corpus_harmonies_df[key]
+        data_count = data_df.value_counts()
+        probs = data_count / data_count.sum()
+        return probs
+
+    def compute_ic(self, key: str) -> pd.DataFrame:
+        probs = self.compute_probs(key=key)
+        h = -np.log2(probs)
+        return h
+
+    def compute_entropy(self, key: str) -> float:
+        probs = self.compute_probs(key=key)
+        H = -sum([p * np.log2(p) for idx, p in enumerate(probs)])
+        return H
+
+    def compute_entropy_scipy(self, key: str, base: int = 2) -> float:
+        """Compute the entropy of a distribution, using scipy library"""
+        probs = self.compute_probs(key=key)
+        H = scipyentropy(probs, base=base)
+        return H
+
 
 @dataclass
 class MetaCorporaInfo:
     metacorpora_path: str
 
     def __post_init__(self):
-        self.subcorpus_list = [f for f in os.listdir(self.metacorpora_path) if not f.startswith('.') if
-                               not f.startswith('__')]
-        self.subcorpus_path = [self.metacorpora_path + item + '/' for item in self.subcorpus_list]
+        """default is annotated subcorpus"""
+        self.unannotated_subcorpus_list = [f for f in os.listdir(self.metacorpora_path) if not f.startswith('.') if
+                                           not f.startswith('__')]
+        self.unannotated_subcorpus_paths = [self.metacorpora_path + item + '/' for item in
+                                            self.unannotated_subcorpus_list]
+
+        self.subcorpus_list = self.get_annotated_subcorpus_list()
+        self.subcorpus_paths = [self.metacorpora_path + item + '/' for item in self.subcorpus_list]
         self.metadata = self.get_metadata()
+        self.corpora_harmonies_df = self.get_corpora_harmonies_df()
+        self.corpora_harmonies_meta_df = self.get_corpora_harmonies_meta()
+
+    def get_annotated_subcorpus_list(self):
+        """check harmonies folder exist, check harmonies/*.tsv path exist"""
+
+        annotated_subcorpus_list = []
+        for idx, val in enumerate(self.unannotated_subcorpus_list):
+            sample_tsv_parent_path = self.metacorpora_path + val + '/harmonies/'
+            if os.path.exists(sample_tsv_parent_path):
+                if any(fname.endswith('.tsv') for fname in os.listdir(sample_tsv_parent_path)):
+                    annotated_subcorpus_list.append(val)
+        return annotated_subcorpus_list
 
     def get_metadata(self, write_csv: bool = False) -> pd.DataFrame:
         df_list = []
-        for idx, val in enumerate(self.subcorpus_path):
+        for idx, val in enumerate(self.subcorpus_paths):
             subcorpus = CorpusInfo(val)
             subcorpus_metadata = subcorpus.metadata
             df_list.append(subcorpus_metadata)
@@ -120,29 +155,81 @@ class MetaCorporaInfo:
         subcorpus = CorpusInfo(subcorpus_path)
         return subcorpus
 
-    def get_corpora_harmonies(self) -> pd.DataFrame:
+    def get_corpora_harmonies_df(self) -> pd.DataFrame:
         df_list = []
-        for idx, val in enumerate(self.subcorpus_path):
+        for idx, val in enumerate(self.subcorpus_paths):
             subcorpus = self.get_subcorpus(val)
             subcorpus_harmonies = subcorpus.corpus_harmonies_df
             df_list.append(subcorpus_harmonies)
         corpora_harmonies = pd.concat(df_list)
         return corpora_harmonies
 
+    def get_corpora_harmonies_meta(self) -> pd.DataFrame:
+        df_list = []
+        for idx, val in enumerate(self.subcorpus_paths):
+            subcorpus = self.get_subcorpus(val)
+            subcorpus_harmonies = subcorpus.corpus_harmonies_meta_df
+            df_list.append(subcorpus_harmonies)
+        corpora_harmonies = pd.concat(df_list)
+        return corpora_harmonies
+
+    def get_harmonies_data_by_key(self, key: str) -> pd.DataFrame:
+        data = self.corpora_harmonies_meta_df[key]
+        return data
+
+    def get_vals_by_key(self, key: str) -> typing.List[str]:
+        vals = self.corpora_harmonies_meta_df[key].to_list()
+        return vals
+
+    def get_unique_values_by_key(self, key: str) -> typing.List[str]:
+
+        metacorpora_keyval_list = self.get_vals_by_key(key=key)
+
+        metacorpora_keyval_list = [str(item) for item in metacorpora_keyval_list]
+        metacorpora_keyval_list[:] = [value for value in metacorpora_keyval_list if value != 'nan']
+
+        unique_values_in_key = [str(item) for item in metacorpora_keyval_list]
+        unique_values_in_key = sorted(list(set(unique_values_in_key)))
+        unique_values_in_key[:] = [value for value in unique_values_in_key if
+                                   value != 'nan']  # get rid of 'nan' in the numeral list
+        return unique_values_in_key
+
+    def get_extended_df_by_key_stats(self, key: str, stats:str) -> pd.DataFrame:
+        unique_key_vals = metacorpora.get_unique_values_by_key(key=key)
+        key_df_list = []
+        for idx, subcorpus_name in enumerate(self.subcorpus_list):
+            subcorpus_path = metacorpora_path + subcorpus_name + '/'
+            subcorpus = metacorpora.get_subcorpus(subcorpus_path)
+            keyvalues_probs = subcorpus.compute_probs(key=key)
+            extended_keyvalues_probs = pd.DataFrame(data=keyvalues_probs, index=unique_key_vals)
+            current_col_name = extended_keyvalues_probs.columns.values.tolist()[0]
+            extended_keyvalues_probs = extended_keyvalues_probs.rename(
+                columns={current_col_name: subcorpus_name})  # rename the column
+
+            key_df_list.append(extended_keyvalues_probs)
+        concat_df = pd.concat(key_df_list, axis=1)
+        return concat_df
+
+    def get_sorted_key_value(self, method:str):
+        raise NotImplementedError
+
 
 if __name__ == '__main__':
-    # metacorpora_path = 'romantic_piano_corpus/'
-    # metacorpora = MetaCorporaInfo(metacorpora_path)
-    # metadata = metacorpora.metadata
-    # subcorpus = metacorpora.get_subcorpus('chopin_mazurkas/')
-    # meta=subcorpus.metadata
-    # print(meta)
-    corpus_path = 'romantic_piano_corpus/chopin_mazurkas/'
-    corpus = CorpusInfo(corpus_path=corpus_path)
+    metacorpora_path = 'dcml_corpora/'
+    metacorpora = MetaCorporaInfo(metacorpora_path)
 
-    metadata_df = corpus.metadata[['fnames', 'composed_end', 'key','mode']] # attach these meta info into each
-    # metadata_df= metadata_df.set_index('fnames')
-    print(metadata_df)
-    piecewise_harmonies_df = pd.read_csv(corpus_path+'harmonies/BI140.tsv', sep='\t')
-    df_length = piecewise_harmonies_df.shape[0]
+    # # vals_list = metacorpora.get_vals_by_key(key='numeral')
+    # unique_key_vals = metacorpora.get_unique_values_by_key(key='numeral')
+    #
+    # # print(meta)
+    # corpus_path = 'romantic_piano_corpus/chopin_mazurkas/'
+    # corpus = CorpusInfo(corpus_path=corpus_path)
+    # prob = corpus.compute_probs(key='numeral')
+    #
+    # chordvocab_probs = corpus.compute_probs(key='numeral')
+    # extended_chordvocab_probs = pd.DataFrame(data=chordvocab_probs, index=unique_key_vals)
+    # col_name = extended_chordvocab_probs.columns.values.tolist()[0]
+    # print(col_name)
 
+    annotated = metacorpora.subcorpus_list
+    print(len(annotated))

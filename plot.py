@@ -56,7 +56,7 @@ def plot_heatmap(metacorpora_path: str) -> plt.Figure:
 
 
 if __name__ == '__main__':
-    metacorpora_path = 'romantic_piano_corpus/'
+    metacorpora_path = 'dcml_corpora/'
 
     # concat_data_df = data_df_for_plots(metacorpora_path, num_of_corpus=2)
     # fig, ax = plt.subplots()
