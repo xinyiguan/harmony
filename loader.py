@@ -194,7 +194,7 @@ class MetaCorporaInfo:
                                    value != 'nan']  # get rid of 'nan' in the numeral list
         return unique_values_in_key
 
-    def get_extended_df_by_key_stats(self, key: str, stats:str) -> pd.DataFrame:
+    def get_extended_df_by_key_stats(self, key: str, stats: str) -> pd.DataFrame:
         unique_key_vals = metacorpora.get_unique_values_by_key(key=key)
         key_df_list = []
         for idx, subcorpus_name in enumerate(self.subcorpus_list):
@@ -210,12 +210,35 @@ class MetaCorporaInfo:
         concat_df = pd.concat(key_df_list, axis=1)
         return concat_df
 
-    def get_sorted_key_value(self, method:str):
-        raise NotImplementedError
+    def get_sorted_key_value_list(self, key: str, method: typing.Literal['count', 'fifth']):
+        if method == 'count':
+            keyval_counts_df = self.corpora_harmonies_meta_df[key].value_counts().to_frame()
+            sorted_key_val_list = keyval_counts_df.index.values.tolist()
+            return sorted_key_val_list
 
+        elif method == 'fifth':
+            raise NotImplementedError
+
+    def get_sorted_subcorpus_by_year(self, output_format: typing.Literal['year_corpus_df', 'corpus', 'years'])-> typing.Union[np.array, pd.DataFrame]:
+        mean_comp_years = []
+        for idx, val in enumerate(self.subcorpus_list):
+            subcorpus = CorpusInfo(self.metacorpora_path + val + '/')
+            subcorpus_composition_year_list = subcorpus.metadata['composed_end']
+            mean_composition_year = int(np.mean(subcorpus_composition_year_list))
+            mean_comp_years.append(mean_composition_year)
+
+        df = pd.DataFrame(self.subcorpus_list, mean_comp_years).sort_index(axis=0)
+        if output_format == 'year_corpus_df':
+            return df
+
+        elif output_format =='corpus':
+            return df.values.flatten()
+
+        elif output_format =='years':
+            return df.index.values()
 
 if __name__ == '__main__':
-    metacorpora_path = 'dcml_corpora/'
+    metacorpora_path = 'romantic_piano_corpus/'
     metacorpora = MetaCorporaInfo(metacorpora_path)
 
     # # vals_list = metacorpora.get_vals_by_key(key='numeral')
@@ -230,6 +253,3 @@ if __name__ == '__main__':
     # extended_chordvocab_probs = pd.DataFrame(data=chordvocab_probs, index=unique_key_vals)
     # col_name = extended_chordvocab_probs.columns.values.tolist()[0]
     # print(col_name)
-
-    annotated = metacorpora.subcorpus_list
-    print(len(annotated))
