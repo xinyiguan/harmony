@@ -4,7 +4,7 @@ from typing import Literal
 import pandas as pd
 from matplotlib import colors
 
-import loader
+import old_loader
 import seaborn as sns
 import numpy as np
 import matplotlib
@@ -164,7 +164,7 @@ def sns_heatmap_key_corpora_stats(metacorpora_path: str, key: str, stat_type: st
     raise NotImplementedError
 
 
-def sns_lineplot_key_entropy_in_metacorpora(metacorpora_path: str, key: str, fig_title:str):
+def sns_lineplot_key_corpus_entropy(metacorpora_path: str, key: str, fig_title:str, print_data: bool=True, print_key_val:bool=False):
     metacorpora = loader.MetaCorporaInfo(metacorpora_path=metacorpora_path)
     subcorpus_list = metacorpora.subcorpus_list
 
@@ -196,10 +196,33 @@ def sns_lineplot_key_entropy_in_metacorpora(metacorpora_path: str, key: str, fig
     sorted_entropy_array = chord_vocab_entropy_array[horizontal_index_permutation]
 
     data = pd.DataFrame(sorted_entropy_array, sorted_corpus_list, columns=['entropies'])
-    print(data)
+    if print_data:
+        print(data)
+    else:
+        pass
 
+    if print_key_val:
+        print(sorted_key_index_list)
+    else:
+        pass
     sns.lineplot(data=data, palette="tab10", linewidth=2.5)
+    plt.tick_params(axis='both', labelsize=6)
+
     plt.show()
+
+
+
+
+def sns_scatterplot_key_piece_entropy(metacorpora_path: str, key: str, fig_title:str, print_data: bool=True, print_key_val:bool=False):
+    metacorpora = loader.MetaCorporaInfo(metacorpora_path=metacorpora_path)
+    subcorpus_list = metacorpora.subcorpus_list
+
+    sorted_key_index_list = metacorpora.get_sorted_key_value_list(key=key, method='count')
+
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=200)
+    fig.suptitle(fig_title)
+
+
 
 
 
@@ -207,7 +230,7 @@ def sns_lineplot_key_entropy_in_metacorpora(metacorpora_path: str, key: str, fig
 if __name__ == '__main__':
     metacorpora_path = 'romantic_piano_corpus/'
     metacorpora = loader.MetaCorporaInfo(metacorpora_path)
-    heatmap_plot_key_corpora_stats(metacorpora_path, key='numeral', stat_type='probs', index_sorting_method='count',)
+    heatmap_plot_key_corpora_stats(metacorpora_path, key='numeral', stat_type='probs', index_sorting_method='count')
 
 
     # chopin_corpus = loader.CorpusInfo(corpus_path)

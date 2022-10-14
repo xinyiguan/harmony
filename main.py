@@ -5,7 +5,7 @@ import seaborn as sns
 import dimcat
 
 import compute
-import plot
+import dimcat_plot
 
 
 

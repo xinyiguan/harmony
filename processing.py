@@ -1,6 +1,6 @@
 import pandas as pd
 
-import loader
+import old_loader
 
 
 def get_corpus_plot_data_csv(corpus_path: str, write_csv: bool = False):
