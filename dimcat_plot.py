@@ -6,7 +6,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 from matplotlib.colors import LogNorm
 import math as math
-import compute
+import old_compute
 
 
 def data_df_for_plots(metacorpora_path: str, num_of_corpus: int = None) -> pd.DataFrame:

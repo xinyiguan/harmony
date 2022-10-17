@@ -16,10 +16,10 @@ class PieceInfo:
     piece_name: str
 
     def __post_init__(self):
-        self.corpus_name = self.parent_corpus_path.split(os.sep)[-2]
-        self.harmonies_df = self.get_aspect_df(aspect='harmonies', selected_keys=None)
-        self.measures_df = self.get_aspect_df(aspect='measures', selected_keys=None)
-        self.notes_df = self.get_aspect_df(aspect='notes', selected_keys=None)
+        self.corpus_name: str = self.parent_corpus_path.split(os.sep)[-2]
+        self.harmonies_df: pd.DataFrame = self.get_aspect_df(aspect='harmonies', selected_keys=None)
+        self.measures_df: pd.DataFramef = self.get_aspect_df(aspect='measures', selected_keys=None)
+        self.notes_df: pd.DataFrame = self.get_aspect_df(aspect='notes', selected_keys=None)
 
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                       selected_keys: Optional[List[str]]) -> pd.DataFrame:
@@ -41,6 +41,23 @@ class PieceInfo:
             selected_df = all_df[selected_keys].copy()
             return selected_df
 
+    def get_piecewise_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
+                                        key: str) -> List[str]:
+        if aspect == 'harmonies':
+            df = self.harmonies_df
+            unique_key_vals = df[key].unique().tolist()
+            return unique_key_vals
+
+        elif aspect == 'measures':
+            df = self.measures_df
+            unique_key_vals = df[key].unique().tolist()
+            return unique_key_vals
+
+        elif aspect == 'notes':
+            df = self.notes_df
+            unique_key_vals = df[key].unique().tolist()
+            return unique_key_vals
+
 
 @dataclass
 class CorpusInfo:
@@ -51,6 +68,8 @@ class CorpusInfo:
         self.piece_name_list = sorted([f.replace('.tsv', '') for f in os.listdir(self.corpus_path + 'harmonies/')
                                        if not f.startswith('.')
                                        if not f.startswith('__')])
+        self.piece_list: List[PieceInfo] = [PieceInfo(parent_corpus_path=self.corpus_path, piece_name=name) for name in
+                                            self.piece_name_list]
         self.metadata_df = self._get_metadata()
         self.corpus_harmonies_df = self.get_corpus_aspect_df(aspect='harmonies', selected_keys=None)
         self.corpus_measures_df = self.get_corpus_aspect_df(aspect='measures', selected_keys=None)
@@ -139,15 +158,25 @@ class MetaCorpraInfo:
 
     def __post_init__(self):
         self.corpus_name_list: List[str] = sorted([f for f in os.listdir(self.meta_corpora_path)
-                                        if not f.startswith('.')
-                                        if not f.startswith('__')])
-        self.corpus_paths:List[str] = [self.meta_corpora_path + val + '/' for idx, val in enumerate(self.corpus_name_list)]
+                                                   if not f.startswith('.')
+                                                   if not f.startswith('__')])
+        self.corpus_paths: List[str] = [self.meta_corpora_path + val + '/' for idx, val in
+                                        enumerate(self.corpus_name_list)]
         self.corpus_list: List[CorpusInfo] = [CorpusInfo(corpus_path=path) for path in self.corpus_paths]
         self.annotated_corpus_list: List[CorpusInfo] = [corpus_info for corpus_info in self.corpus_list if
                                                         corpus_info.is_annotated]
+        self.corpora_harmonies_df = self.get_corpora_aspect_df(aspect='harmonies',
+                                                               selected_keys=None,
+                                                               annotated=True)
+        self.corpora_measures_df = self.get_corpora_aspect_df(aspect='measures',
+                                                              selected_keys=None,
+                                                              annotated=True)
+        self.corpora_notes_df = self.get_corpora_aspect_df(aspect='notes',
+                                                           selected_keys=None,
+                                                           annotated=True)
 
     def get_corpora_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
-                             selected_keys: Optional[List[str]], annotated: bool = True) -> pd.DataFrame:
+                              selected_keys: Optional[List[str]], annotated: bool = True) -> pd.DataFrame:
         if annotated is True:
             concat_df_list = []
             for idx, val in enumerate(self.annotated_corpus_list):
@@ -163,10 +192,28 @@ class MetaCorpraInfo:
             corpora_aspect_df = pd.concat(concat_df_list)
             return corpora_aspect_df
 
+    def get_corpora_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
+                                      key: str, annotated: bool = True) -> List[str]:
+        if annotated:
+            if aspect == 'harmonies':
+                df = self.corpora_harmonies_df
+                unique_key_vals = df[key].unique().tolist()
+                return unique_key_vals
+
+            elif aspect == 'measures':
+                df = self.corpora_measures_df
+                unique_key_vals = df[key].unique().tolist()
+                return unique_key_vals
+
+            elif aspect == 'notes':
+                df = self.corpora_notes_df
+                unique_key_vals = df[key].unique().tolist()
+                return unique_key_vals
 
 
 if __name__ == '__main__':
-    metacorpora_path='romantic_piano_corpus/'
-    metacorpora= MetaCorpraInfo(metacorpora_path)
-    df=metacorpora.get_corpora_aspect_df(aspect='harmonies', selected_keys=['chord', 'numeral', 'fname', 'corpus'], annotated=True)
+    metacorpora_path = 'romantic_piano_corpus/'
+    metacorpora = MetaCorpraInfo(metacorpora_path)
+    df = metacorpora.get_corpora_aspect_df(aspect='harmonies', selected_keys=['chord', 'numeral', 'fname', 'corpus'],
+                                           annotated=True)
     print(df)

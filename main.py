@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import dimcat
 
-import compute
+import old_compute
 import dimcat_plot
 
 
