@@ -6,6 +6,7 @@ import os
 from dataclasses import dataclass
 from typing import List, Optional, Literal
 
+import numpy as np
 import pandas as pd
 
 
@@ -39,6 +40,7 @@ class PieceInfo:
             return all_df
         else:
             selected_df = all_df[selected_keys].copy()
+            selected_df = selected_df.dropna()  # to drop the rows with index NaN
             return selected_df
 
     def get_piecewise_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
@@ -123,6 +125,7 @@ class CorpusInfo:
             return concat_aspect_df
         else:
             selected_aspect_df = concat_aspect_df[selected_keys].copy()
+            selected_aspect_df = selected_aspect_df.dropna()  # to drop the rows with index NaN
             return selected_aspect_df
 
     def get_corpuswise_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
@@ -183,6 +186,7 @@ class MetaCorpraInfo:
                 aspect_all_df = val.get_corpus_aspect_df(aspect=aspect, selected_keys=selected_keys)
                 concat_df_list.append(aspect_all_df)
             corpora_aspect_df = pd.concat(concat_df_list)
+            corpora_aspect_df = corpora_aspect_df.dropna()  # to drop the rows with index NaN
             return corpora_aspect_df
         else:
             concat_df_list = []
@@ -190,6 +194,7 @@ class MetaCorpraInfo:
                 aspect_all_df = val.get_corpus_aspect_df(aspect=aspect, selected_keys=selected_keys)
                 concat_df_list.append(aspect_all_df)
             corpora_aspect_df = pd.concat(concat_df_list)
+            corpora_aspect_df = corpora_aspect_df.dropna()  # to drop the rows with index NaN
             return corpora_aspect_df
 
     def get_corpora_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
@@ -214,6 +219,7 @@ class MetaCorpraInfo:
 if __name__ == '__main__':
     metacorpora_path = 'romantic_piano_corpus/'
     metacorpora = MetaCorpraInfo(metacorpora_path)
-    df = metacorpora.get_corpora_aspect_df(aspect='harmonies', selected_keys=['chord', 'numeral', 'fname', 'corpus'],
+    df = metacorpora.get_corpora_aspect_df(aspect='harmonies', selected_keys=['numeral', 'fname', 'corpus'],
                                            annotated=True)
-    print(df)
+    print(df['numeral'].unique().tolist())
+    # print(df.index)

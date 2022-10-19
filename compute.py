@@ -27,7 +27,8 @@ def dataframe_extension(source_df: pd.DataFrame,
 def compute_prob(obj: Union[PieceInfo, CorpusInfo, MetaCorpraInfo],
                  aspect: Literal['harmonies', 'measures', 'notes'],
                  key: str,
-                 keyword_normalization: Literal['within_piece', 'within_corpus', 'within_metacorpora']) -> pd.DataFrame:
+                 keyword_normalization: Literal['within_piece', 'within_corpus', 'within_metacorpora'],
+                 meta_corpora_path: str = None) -> pd.DataFrame:
     """
     Compute the probabilities of each key value, with the key value as the row index.
     Note that we account for all unique keys (in either piece/corpus/metacorpora level) as row index to calculate probs.
@@ -46,17 +47,51 @@ def compute_prob(obj: Union[PieceInfo, CorpusInfo, MetaCorpraInfo],
         if keyword_normalization == 'within_piece':
             return probs
         elif keyword_normalization == 'within_corpus':
-            raise NotImplementedError
+            source_df = probs
+            corpus = CorpusInfo(piece.parent_corpus_path)
+            extended_unique_kw_list = corpus.get_corpuswise_unique_key_values(aspect=aspect, key=key)
+            extended_probs = dataframe_extension(source_df=source_df, extended_unique_kw_list=extended_unique_kw_list,
+                                                 fillNaN=True)
+            return extended_probs
 
         elif keyword_normalization == 'within_metacorpora':
-            raise NotImplementedError
+            if metacorpora_path is None:
+                raise AssertionError(f'{meta_corpora_path} Missing required input')
+            else:
+                metacorpora = MetaCorpraInfo(meta_corpora_path=metacorpora_path)
+                meta_unique_key_vals = metacorpora.get_corpora_unique_key_values(aspect=aspect, key=key)
+                meta_extended_probs = dataframe_extension(source_df=probs, extended_unique_kw_list=meta_unique_key_vals,
+                                                          fillNaN=True)
+                return meta_extended_probs
 
     elif isinstance(obj, CorpusInfo):
         corpus_df = obj.get_corpus_aspect_df(aspect=aspect, selected_keys=[key]).copy()
         unique_key_vals = obj.get_corpuswise_unique_key_values(aspect=aspect, key=key)
+        counts = corpus_df[key].value_counts()
+        probs = counts / counts.sum()
+        probs = probs.to_frame()
+        probs = probs.set_axis(['probs'], axis='columns')
+        extended_probs = dataframe_extension(source_df=probs, extended_unique_kw_list=unique_key_vals,
+                                             fillNaN=True)
+        if keyword_normalization == 'within_corpus':
+            return extended_probs
+        elif keyword_normalization == 'within_metacorpora':
+            if metacorpora_path is None:
+                raise AssertionError(f'{meta_corpora_path} Missing required input')
+            else:
+                metacorpora = MetaCorpraInfo(meta_corpora_path=metacorpora_path)
+                meta_unique_key_vals = metacorpora.get_corpora_unique_key_values(aspect=aspect, key=key)
+                meta_extended_probs = dataframe_extension(source_df=extended_probs,
+                                                          extended_unique_kw_list=meta_unique_key_vals, fillNaN=True)
+                return meta_extended_probs
 
     elif isinstance(obj, MetaCorpraInfo):
-        raise NotImplementedError
+        metacorpora_df = obj.get_corpora_aspect_df(aspect=aspect, selected_keys=[key]).copy()
+        counts = metacorpora_df[key].value_counts()
+        probs = counts / counts.sum()
+        probs = probs.to_frame()
+        probs = probs.set_axis(['probs'], axis='columns')
+        return probs
 
 
 if __name__ == '__main__':
@@ -67,7 +102,11 @@ if __name__ == '__main__':
     corpus = CorpusInfo(corpus_path)
 
     piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
-    prob_df = compute_prob(obj=piece, aspect='harmonies', key='numeral', keyword_normalization='within_piece')
+    # within_piece = compute_prob(obj=piece, aspect='harmonies', key='numeral', keyword_normalization='within_piece')
+    # print(within_piece)
+    within_corp = compute_prob(obj=corpus, aspect='harmonies', key='numeral',
+                               keyword_normalization='within_metacorpora', meta_corpora_path=metacorpora_path)
+    print(within_corp)
     # print(prob_df.index.values.tolist())
     # print(prob_df.loc['V'])
 
