@@ -168,5 +168,6 @@ if __name__ == '__main__':
 
     metacorpora = MetaCorpraInfo(metacorpora_path)
     corpus = CorpusInfo(corpus_path)
-
-    compute_bigram_probs(obj=corpus, aspect='harmonies', key='numeral')
+    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
+    bigram = compute_bigram_probs(obj=piece, aspect='harmonies', key='numeral')
+    print(bigram)
