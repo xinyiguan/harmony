@@ -1,8 +1,11 @@
 from typing import Union, Literal, List
 
+import numpy as np
 import pandas as pd
+from scipy.stats import entropy
 
 from loader import PieceInfo, CorpusInfo, MetaCorpraInfo
+from n_gram import N_Gram
 
 
 def dataframe_extension(source_df: pd.DataFrame,
@@ -48,7 +51,7 @@ def compute_prob(obj: Union[PieceInfo, CorpusInfo, MetaCorpraInfo],
             return probs
         elif keyword_normalization == 'within_corpus':
             source_df = probs
-            corpus = CorpusInfo(piece.parent_corpus_path)
+            corpus = CorpusInfo(obj.parent_corpus_path)
             extended_unique_kw_list = corpus.get_corpuswise_unique_key_values(aspect=aspect, key=key)
             extended_probs = dataframe_extension(source_df=source_df, extended_unique_kw_list=extended_unique_kw_list,
                                                  fillNaN=True)
@@ -94,6 +97,71 @@ def compute_prob(obj: Union[PieceInfo, CorpusInfo, MetaCorpraInfo],
         return probs
 
 
+def compute_information_content(probability: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute the information content (self-information) of indiviudal event with base 2 (in bits)
+    :param probability: a DataFrame of probabilities with the corresponding key values as row index.
+    :return: a DataFrame of ic with the corresponding key values as row index.
+    """
+    h = -np.log2(probability)
+    h.columns = ['information content']
+    return h
+
+
+def compute_entropy(probability: pd.DataFrame, base: int = 2) -> float:
+    H = entropy(probability, base=base)
+    return H
+
+
+def compute_bigram_probs(obj: Union[PieceInfo, CorpusInfo, MetaCorpraInfo],
+                         aspect: Literal['harmonies', 'measures', 'notes'],
+                         key: str,
+                         meta_corpora_path: str = None):
+    """
+    compute the bigram probability: P(c2|c1) = count(c1 c2) / count(c1)
+    :param obj:
+    :param aspect:
+    :param key:
+    :param meta_corpora_path:
+    :return:
+    """
+    if isinstance(obj, PieceInfo):
+        unigrams = pd.DataFrame(N_Gram(piece=obj, aspect=aspect, key=key, n=1).get_grams_seq(), columns=['unigram'])
+        bigrams = pd.DataFrame(N_Gram(piece=obj, aspect=aspect, key=key, n=2).get_grams_seq(), columns=['bigram'])
+
+        unigram_counts = unigrams['unigram'].value_counts(sort=True)
+        bigram_counts = bigrams['bigram'].value_counts(sort=True)
+        correpond_preceding_unigram = [name.split('_')[0] for name in bigram_counts.index.values.flatten().tolist()]
+
+        bigram_probs = pd.DataFrame(bigram_counts.index.values.flatten(), columns=['bigram_type'])
+        bigram_probs['preceding_unigram']= correpond_preceding_unigram
+        bigram_probs['probs'] = bigram_counts[bigram_probs['bigram_type']].values/unigram_counts[bigram_probs['preceding_unigram']].values
+        return bigram_probs
+
+    elif isinstance(obj, CorpusInfo):
+        corpus_unigrams_df = pd.DataFrame(obj.get_corpus_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist(), columns=['unigram'])
+        corpus_bigrams_list = []
+
+        for idx, piece in enumerate(obj.piece_list):
+            bigrams = pd.DataFrame(N_Gram(piece=piece, aspect=aspect, key=key, n=2).get_grams_seq(), columns=['bigram'])
+            corpus_bigrams_list.append(bigrams)
+
+        corpus_bigrams_df = pd.concat(corpus_bigrams_list, ignore_index=True)
+
+        corpus_unigram_counts =corpus_unigrams_df['unigram'].value_counts()
+        corpus_bigram_counts = corpus_bigrams_df['bigram'].value_counts()
+        correpond_preceding_unigram = [name.split('_')[0] for name in corpus_bigram_counts.index.values.flatten().tolist()]
+
+        bigram_probs = pd.DataFrame(corpus_bigram_counts.index.values.flatten(), columns=['bigram_type'])
+        bigram_probs['preceding_unigram']= correpond_preceding_unigram
+        bigram_probs['probs'] = corpus_bigram_counts[bigram_probs['bigram_type']].values/corpus_unigram_counts[bigram_probs['preceding_unigram']].values
+        return bigram_probs
+
+    elif isinstance(obj, MetaCorpraInfo):
+        raise NotImplementedError
+
+
+
 if __name__ == '__main__':
     metacorpora_path = 'romantic_piano_corpus/'
     corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
@@ -101,16 +169,4 @@ if __name__ == '__main__':
     metacorpora = MetaCorpraInfo(metacorpora_path)
     corpus = CorpusInfo(corpus_path)
 
-    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
-    # within_piece = compute_prob(obj=piece, aspect='harmonies', key='numeral', keyword_normalization='within_piece')
-    # print(within_piece)
-    within_corp = compute_prob(obj=corpus, aspect='harmonies', key='numeral',
-                               keyword_normalization='within_metacorpora', meta_corpora_path=metacorpora_path)
-    print(within_corp)
-    # print(prob_df.index.values.tolist())
-    # print(prob_df.loc['V'])
-
-    # source_df = prob_df
-    # extended_unique_kw_list = metacorpora.get_corpora_unique_key_values(aspect='harmonies', key='numeral')
-    #
-    # print(dataframe_extension(source_df=source_df , extended_unique_kw_list= extended_unique_kw_list, fillNaN=True))
+    compute_bigram_probs(obj=corpus, aspect='harmonies', key='numeral')
