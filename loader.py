@@ -8,6 +8,9 @@ from typing import List, Optional, Literal
 
 import numpy as np
 import pandas as pd
+from matplotlib import pyplot as plt
+
+from n_gram import get_n_grams, get_transition_matrix
 
 
 @dataclass
@@ -60,6 +63,20 @@ class PieceInfo:
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
+    def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str) -> np.ndarray:
+        key_val_list = self.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
+        n_grams = get_n_grams(sequence=key_val_list, n=n)
+        return n_grams
+
+    def get_transition_matrix(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
+                              key: str,
+                              probability: bool = False) -> pd.DataFrame:
+        n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
+        transition_matrix = get_transition_matrix(n_grams=n_grams)
+        if probability:
+            transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
+            return transition_prob
+        return transition_matrix
 
 @dataclass
 class CorpusInfo:
@@ -154,6 +171,27 @@ class CorpusInfo:
         is_annotated = all(conditions)
         return is_annotated
 
+    def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str):
+
+        # pieces = self.piece_list
+        corpus_n_grams = []
+        for piece in self.piece_list:
+            key_values_list = piece.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
+            piece_n_grams = get_n_grams(sequence=key_values_list, n=n)
+            corpus_n_grams.append(piece_n_grams)
+        corpus_n_grams = np.concatenate(corpus_n_grams)
+
+        return corpus_n_grams
+
+    def get_transition_matrix(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
+                              key: str,
+                              probability: bool = False) -> pd.DataFrame:
+        n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
+        transition_matrix = get_transition_matrix(n_grams=n_grams)
+        if probability:
+            transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
+            return transition_prob
+        return transition_matrix
 
 @dataclass
 class MetaCorpraInfo:
@@ -215,11 +253,33 @@ class MetaCorpraInfo:
                 unique_key_vals = df[key].unique().tolist()
                 return unique_key_vals
 
+    def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str):
+
+        metacorpora_n_grams = []
+        for corpus in self.corpus_list:
+            key_values_list = corpus.get_corpus_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
+            corpus_n_grams = get_n_grams(sequence=key_values_list, n=n)
+            metacorpora_n_grams.append(corpus_n_grams)
+
+        metacorpora_n_grams = np.concatenate(metacorpora_n_grams)
+
+        return metacorpora_n_grams
+
+    def get_transition_matrix(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
+                              key: str,
+                              probability: bool = False) -> pd.DataFrame:
+        n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
+        transition_matrix = get_transition_matrix(n_grams=n_grams)
+        if probability:
+            transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
+            return transition_prob
+        return transition_matrix
+
 
 if __name__ == '__main__':
     metacorpora_path = 'romantic_piano_corpus/'
     metacorpora = MetaCorpraInfo(metacorpora_path)
-    df = metacorpora.get_corpora_aspect_df(aspect='harmonies', selected_keys=['numeral', 'fname', 'corpus'],
-                                           annotated=True)
-    print(df['numeral'].unique().tolist())
-    # print(df.index)
+    transition_matrix = metacorpora.get_transition_matrix(n=2, aspect='harmonies', key='numeral', probability=True)
+
+    # corpus = CorpusInfo(corpus_path='romantic_piano_corpus/debussy_suite_bergamasque/')
+    # print(corpus.get_n_grams(n=2, aspect='harmonies', key='numeral'))
