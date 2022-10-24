@@ -78,6 +78,7 @@ class PieceInfo:
             return transition_prob
         return transition_matrix
 
+
 @dataclass
 class CorpusInfo:
     corpus_path: str
@@ -193,6 +194,7 @@ class CorpusInfo:
             return transition_prob
         return transition_matrix
 
+
 @dataclass
 class MetaCorpraInfo:
     meta_corpora_path: str
@@ -276,10 +278,21 @@ class MetaCorpraInfo:
         return transition_matrix
 
 
+MAJOR = Literal['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
+                'bI', 'bII', 'bIII', 'bIV', 'bV', 'bVI', 'bVII']
+
+MINOR = Literal['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
+                'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
+
 if __name__ == '__main__':
     metacorpora_path = 'romantic_piano_corpus/'
-    metacorpora = MetaCorpraInfo(metacorpora_path)
-    transition_matrix = metacorpora.get_transition_matrix(n=2, aspect='harmonies', key='numeral', probability=True)
+    # metacorpora = MetaCorpraInfo(metacorpora_path)
 
-    # corpus = CorpusInfo(corpus_path='romantic_piano_corpus/debussy_suite_bergamasque/')
-    # print(corpus.get_n_grams(n=2, aspect='harmonies', key='numeral'))
+    corpus_path = 'romantic_piano_corpus/chopin_mazurkas/'
+    corpus = CorpusInfo(corpus_path=corpus_path)
+    harmonies_df = corpus.corpus_harmonies_df.columns.values
+    # print(harmonies_df)
+    sub_harmonies_df = harmonies_df[
+        ["fname", "corpus", "composed_end", "globalkey", "localkey", "annotated_key", "globalkey_is_minor",
+         "localkey_is_minor"]]
+    print(sub_harmonies_df)
