@@ -21,9 +21,6 @@ class PieceInfo:
 
     def __post_init__(self):
         self.corpus_name: str = self.parent_corpus_path.split(os.sep)[-2]
-        self.harmonies_df: pd.DataFrame = self.get_aspect_df(aspect='harmonies', selected_keys=None)
-        self.measures_df: pd.DataFramef = self.get_aspect_df(aspect='measures', selected_keys=None)
-        self.notes_df: pd.DataFrame = self.get_aspect_df(aspect='notes', selected_keys=None)
 
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                       selected_keys: Optional[List[str]]) -> pd.DataFrame:
@@ -85,16 +82,10 @@ class CorpusInfo:
 
     def __post_init__(self):
         self.corpus_name = self.corpus_path.split(os.sep)[-2]
-        self.piece_name_list = sorted([f.replace('.tsv', '') for f in os.listdir(self.corpus_path + 'harmonies/')
-                                       if not f.startswith('.')
-                                       if not f.startswith('__')])
+        self.piece_name_list = sorted(self._get_metadata()['fnames'])
         self.piece_list: List[PieceInfo] = [PieceInfo(parent_corpus_path=self.corpus_path, piece_name=name) for name in
                                             self.piece_name_list]
         self.metadata_df = self._get_metadata()
-        self.corpus_harmonies_df = self.get_corpus_aspect_df(aspect='harmonies', selected_keys=None)
-        self.corpus_measures_df = self.get_corpus_aspect_df(aspect='measures', selected_keys=None)
-        self.corpus_notes_df = self.get_corpus_aspect_df(aspect='notes', selected_keys=None)
-        self.is_annotated = self._check_annotated()
 
     def _get_metadata(self) -> pd.DataFrame:
         """
@@ -163,14 +154,22 @@ class CorpusInfo:
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
-    def _check_annotated(self) -> bool:
-        conditions = [
-            any(file for file in os.listdir(self.corpus_path + 'harmonies/') if file.endswith('.tsv')),
-            any(file for file in os.listdir(self.corpus_path + 'measures/') if file.endswith('.tsv')),
-            any(file for file in os.listdir(self.corpus_path + 'notes/') if file.endswith('.tsv')),
+    def is_annotated(self) -> bool:
+        conditions_1 = [
+            os.path.isdir(self.corpus_path + 'harmonies/'),
+            os.path.isdir(self.corpus_path + 'measures/'),
+            os.path.isdir(self.corpus_path + 'notes/'),
         ]
-        is_annotated = all(conditions)
-        return is_annotated
+        if all(conditions_1) is False:
+            return False
+        else:
+            conditions_2 = [
+                any(file for file in os.listdir(self.corpus_path + 'harmonies/') if file.endswith('.tsv')),
+                any(file for file in os.listdir(self.corpus_path + 'measures/') if file.endswith('.tsv')),
+                any(file for file in os.listdir(self.corpus_path + 'notes/') if file.endswith('.tsv')),
+            ]
+            is_annotated = all(conditions_2)
+            return is_annotated
 
     def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str):
 
@@ -207,16 +206,15 @@ class MetaCorpraInfo:
                                         enumerate(self.corpus_name_list)]
         self.corpus_list: List[CorpusInfo] = [CorpusInfo(corpus_path=path) for path in self.corpus_paths]
         self.annotated_corpus_list: List[CorpusInfo] = [corpus_info for corpus_info in self.corpus_list if
-                                                        corpus_info.is_annotated]
-        self.corpora_harmonies_df = self.get_corpora_aspect_df(aspect='harmonies',
-                                                               selected_keys=None,
-                                                               annotated=True)
-        self.corpora_measures_df = self.get_corpora_aspect_df(aspect='measures',
-                                                              selected_keys=None,
-                                                              annotated=True)
-        self.corpora_notes_df = self.get_corpora_aspect_df(aspect='notes',
-                                                           selected_keys=None,
-                                                           annotated=True)
+                                                        corpus_info.is_annotated()]
+
+    def get_corpora_concat_metadata_df(self, selected_keys: List[str]):
+        metadata_list = []
+        for corpus in self.annotated_corpus_list:
+            corpus_metadadta = corpus.metadata_df[selected_keys]
+            metadata_list.append(corpus_metadadta)
+        metadata_df = pd.concat(metadata_list, ignore_index=True)
+        return metadata_df
 
     def get_corpora_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                               selected_keys: Optional[List[str]], annotated: bool = True) -> pd.DataFrame:
@@ -241,17 +239,17 @@ class MetaCorpraInfo:
                                       key: str, annotated: bool = True) -> List[str]:
         if annotated:
             if aspect == 'harmonies':
-                df = self.corpora_harmonies_df
+                df = self.get_corpora_aspect_df(aspect=aspect, selected_keys=None, annotated=True)
                 unique_key_vals = df[key].unique().tolist()
                 return unique_key_vals
 
             elif aspect == 'measures':
-                df = self.corpora_measures_df
+                df = self.get_corpora_aspect_df(aspect=aspect, selected_keys=None, annotated=True)
                 unique_key_vals = df[key].unique().tolist()
                 return unique_key_vals
 
             elif aspect == 'notes':
-                df = self.corpora_notes_df
+                df = self.get_corpora_aspect_df(aspect=aspect, selected_keys=None, annotated=True)
                 unique_key_vals = df[key].unique().tolist()
                 return unique_key_vals
 
@@ -285,14 +283,11 @@ MINOR = Literal['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', '#i', '#ii', '#iii', '
                 'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
 
 if __name__ == '__main__':
-    metacorpora_path = 'romantic_piano_corpus/'
-    # metacorpora = MetaCorpraInfo(metacorpora_path)
+    metacorpora_path = 'dcml_corpora/'
+    metacorpora = MetaCorpraInfo(metacorpora_path)
+    #
+    # metadata=metacorpora.get_corpora_metadata_df()['fnames', 'composed_end']
+    # print(metadata)
 
-    corpus_path = 'romantic_piano_corpus/chopin_mazurkas/'
-    corpus = CorpusInfo(corpus_path=corpus_path)
-    harmonies_df = corpus.corpus_harmonies_df.columns.values
-    # print(harmonies_df)
-    sub_harmonies_df = harmonies_df[
-        ["fname", "corpus", "composed_end", "globalkey", "localkey", "annotated_key", "globalkey_is_minor",
-         "localkey_is_minor"]]
-    print(sub_harmonies_df)
+    metadata=metacorpora.get_corpora_concat_metadata_df(selected_keys=['corpus', 'fnames', 'composed_end'])
+    print(metadata['composed_end'].isnull().values.any())
