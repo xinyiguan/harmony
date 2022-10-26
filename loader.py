@@ -12,6 +12,26 @@ from matplotlib import pyplot as plt
 
 from n_gram import get_n_grams, get_transition_matrix
 
+MAJOR_NUMERALS = Literal['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
+                         'bI', 'bII', 'bIII', 'bIV', 'bV', 'bVI', 'bVII']
+
+MINOR_NUMERASL = Literal['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
+                         'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
+
+
+MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major', 'E': 'major', 'F': 'major',
+                         'G': 'major',
+                         'A#': 'major', 'B#': 'major', 'C#': 'major', 'D#': 'major', 'E#': 'major', 'F#': 'major',
+                         'G#': 'major',
+                         'Ab': 'major', 'Bb': 'major', 'Cb': 'major', 'Db': 'major', 'Eb': 'major', 'Fb': 'major',
+                         'Gb': 'major',
+                         'a': 'minor', 'b': 'minor', 'c': 'minor', 'd': 'minor', 'e': 'minor',
+                         'f': 'minor', 'g': 'minor',
+                         'a#': 'minor', 'b#': 'minor', 'c#': 'minor', 'd#': 'minor', 'e#': 'minor', 'f#': 'minor',
+                         'g#': 'minor',
+                         'ab': 'minor', 'bb': 'minor', 'cb': 'minor', 'db': 'minor', 'eb': 'minor',
+                         'fb': 'minor', 'gb': 'minor'}
+
 
 @dataclass
 class PieceInfo:
@@ -21,12 +41,13 @@ class PieceInfo:
 
     def __post_init__(self):
         self.corpus_name: str = self.parent_corpus_path.split(os.sep)[-2]
+        self.globalkey: str = self._global_key()
 
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                       selected_keys: Optional[List[str]]) -> pd.DataFrame:
         """
         To get the piece-wise aspect(harmonies/measures/notes) tsv files as a DataFrame, always attach metadata (parent corpus, fname)
-        :param: selected_keys: a list of keys (such as 'chord','numeral') in the tsv file. If none, return the entire df.
+        :param: selected_keys: a list of keys (such as 'chord','numeral') in the tsv file. If none (default), select all keys.
         :return: a DataFrame
         """
 
@@ -39,24 +60,24 @@ class PieceInfo:
         if selected_keys is None:
             return all_df
         else:
-            selected_df = all_df[selected_keys].copy()
+            selected_df = all_df[selected_keys]
             selected_df = selected_df.dropna()  # to drop the rows with index NaN
             return selected_df
 
     def get_piecewise_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
                                         key: str) -> List[str]:
         if aspect == 'harmonies':
-            df = self.harmonies_df
+            df = self.get_aspect_df(aspect='harmonies', selected_keys=None)
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
         elif aspect == 'measures':
-            df = self.measures_df
+            df = self.get_aspect_df(aspect='measures', selected_keys=None)
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
         elif aspect == 'notes':
-            df = self.notes_df
+            df = self.get_aspect_df(aspect='notes', selected_keys=None)
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
@@ -75,17 +96,35 @@ class PieceInfo:
             return transition_prob
         return transition_matrix
 
+    def _global_key(self):
+
+        if 'globalkey_is_minor' in self.get_aspect_df(aspect='harmonies', selected_keys=None).columns:
+            key = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey_is_minor'])[
+                'globalkey_is_minor'].mode().values[0]
+            if key == 0:
+                return str('MAJOR')
+            elif key == 1:
+                return str('MINOR')
+            else:
+                raise ValueError
+        else:
+            return str('NA')
+
 
 @dataclass
 class CorpusInfo:
+    # the pieces list is already filtered with annotated pieces
     corpus_path: str
 
     def __post_init__(self):
         self.corpus_name = self.corpus_path.split(os.sep)[-2]
-        self.piece_name_list = sorted(self._get_metadata()['fnames'])
-        self.piece_list: List[PieceInfo] = [PieceInfo(parent_corpus_path=self.corpus_path, piece_name=name) for name in
-                                            self.piece_name_list]
         self.metadata_df = self._get_metadata()
+
+        # self.piece_name_list = sorted(self._get_metadata()['fnames']) # ideally, the finished annotated case: metadata sheet mathcing the corresponding tsv files.
+
+        self.annotated_piece_name_list = self.get_annotated_piece_name_list(manually_filtered_pieces=None)
+        self.annotated_piece_list: List[PieceInfo] = [PieceInfo(parent_corpus_path=self.corpus_path, piece_name=name)
+                                                      for name in self.annotated_piece_name_list]
 
     def _get_metadata(self) -> pd.DataFrame:
         """
@@ -96,8 +135,24 @@ class CorpusInfo:
         metadata_df = pd.read_csv(metadata_tsv_path, sep='\t')
         corpus_name_list = [self.corpus_name] * len(metadata_df)
         metadata_df['corpus'] = corpus_name_list
-
+        # metadata_df['major/minor'] = metadata_df['annotated_key'].map(MAJOR_MINOR_KEYS_Dict)
         return metadata_df
+
+    def get_annotated_piece_name_list(self, manually_filtered_pieces: Optional[List[str]]):
+        """
+        check if label count is 0 (not annotated) or not.
+        :return:
+        """
+        sub_df = self.metadata_df[['fnames', 'label_count']]
+        df2check = sub_df.drop(sub_df[sub_df['label_count'] == 0].index)
+        annotated_piece_name_list = df2check['fnames'].values.flatten().tolist()
+
+        if manually_filtered_pieces:
+            filtered_annotated_piece_name_list = [annotated_piece_name_list.remove(val) for idx, val in
+                                                  enumerate(manually_filtered_pieces)]
+            return filtered_annotated_piece_name_list
+        else:
+            return annotated_piece_name_list
 
     def get_corpus_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                              selected_keys: Optional[List[str]]) -> pd.DataFrame:
@@ -110,7 +165,7 @@ class CorpusInfo:
         """
 
         concat_df_list = []
-        for idx, val in enumerate(self.piece_name_list):
+        for idx, val in enumerate(self.annotated_piece_name_list):
             piece = PieceInfo(parent_corpus_path=self.corpus_path, piece_name=val)
             aspect_all_df = piece.get_aspect_df(aspect=aspect, selected_keys=None)
 
@@ -127,6 +182,9 @@ class CorpusInfo:
                                                  correpond_piece_row_idx_in_metadata_df]] * df_length
             aspect_all_df['composed_start'] = [self.metadata_df['composed_start'][
                                                    correpond_piece_row_idx_in_metadata_df]] * df_length
+
+            aspect_all_df['globalkey'] = [piece.globalkey] * df_length
+
             concat_df_list.append(aspect_all_df)
         concat_aspect_df = pd.concat(concat_df_list)
 
@@ -140,27 +198,25 @@ class CorpusInfo:
     def get_corpuswise_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
                                          key: str) -> List[str]:
         if aspect == 'harmonies':
-            df = self.corpus_harmonies_df
+            df = self.get_corpus_aspect_df(aspect='harmonies', selected_keys=None)
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
         elif aspect == 'measures':
-            df = self.corpus_measures_df
+            df = self.get_corpus_aspect_df(aspect='measures', selected_keys=None)
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
         elif aspect == 'notes':
-            df = self.corpus_notes_df
+            df = self.get_corpus_aspect_df(aspect='notes', selected_keys=None)
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
     def is_annotated(self) -> bool:
-        conditions_1 = [
-            os.path.isdir(self.corpus_path + 'harmonies/'),
-            os.path.isdir(self.corpus_path + 'measures/'),
-            os.path.isdir(self.corpus_path + 'notes/'),
-        ]
-        if all(conditions_1) is False:
+        # whether the entire corpus is (at least partially) annotated or not.
+        if all([os.path.isdir(self.corpus_path + 'harmonies/'),
+                os.path.isdir(self.corpus_path + 'measures/'),
+                os.path.isdir(self.corpus_path + 'notes/'), ]) is False:
             return False
         else:
             conditions_2 = [
@@ -175,7 +231,7 @@ class CorpusInfo:
 
         # pieces = self.piece_list
         corpus_n_grams = []
-        for piece in self.piece_list:
+        for piece in self.annotated_piece_name_list:
             key_values_list = piece.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
             piece_n_grams = get_n_grams(sequence=key_values_list, n=n)
             corpus_n_grams.append(piece_n_grams)
@@ -211,8 +267,9 @@ class MetaCorpraInfo:
     def get_corpora_concat_metadata_df(self, selected_keys: List[str]):
         metadata_list = []
         for corpus in self.annotated_corpus_list:
-            corpus_metadadta = corpus.metadata_df[selected_keys]
-            metadata_list.append(corpus_metadadta)
+            corpus_metadata = corpus.metadata_df[corpus.metadata_df['label_count'] > 0]
+            corpus_metadata = corpus_metadata[selected_keys]
+            metadata_list.append(corpus_metadata)
         metadata_df = pd.concat(metadata_list, ignore_index=True)
         return metadata_df
 
@@ -276,18 +333,12 @@ class MetaCorpraInfo:
         return transition_matrix
 
 
-MAJOR = Literal['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
-                'bI', 'bII', 'bIII', 'bIV', 'bV', 'bVI', 'bVII']
-
-MINOR = Literal['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
-                'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
-
 if __name__ == '__main__':
     metacorpora_path = 'dcml_corpora/'
     metacorpora = MetaCorpraInfo(metacorpora_path)
-    #
-    # metadata=metacorpora.get_corpora_metadata_df()['fnames', 'composed_end']
-    # print(metadata)
+    major_minor_data_df = metacorpora.get_corpora_concat_metadata_df(
+        selected_keys=['corpus', 'fnames', 'composed_end', 'annotated_key'])
 
-    metadata=metacorpora.get_corpora_concat_metadata_df(selected_keys=['corpus', 'fnames', 'composed_end'])
-    print(metadata['composed_end'].isnull().values.any())
+    major_minor_data_df['major/minor'] = major_minor_data_df['annotated_key'].map(MAJOR_MINOR_KEYS_Dict)
+
+    print(major_minor_data_df)

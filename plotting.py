@@ -30,8 +30,6 @@ if __name__ == '__main__':
                 cbar_kws={"orientation": "horizontal", "fraction": 0.1,
                           "label": "Transition probability"})
 
-
-
     ax.set_xlabel("Target chord")
     ax.xaxis.tick_top()
     ax.set_ylabel("Origin chord")
