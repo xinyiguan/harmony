@@ -3,7 +3,6 @@ from typing import List, Literal
 import numpy as np
 import pandas as pd
 
-
 def get_n_grams(sequence: List[str], n: int) -> np.ndarray:
     transitions = np.array(
         [['_'.join(sequence[i - (n - 1):i]), sequence[i]] for i in range(n - 1, len(sequence))])
@@ -18,3 +17,5 @@ def get_transition_matrix(n_grams: np.ndarray) -> pd.DataFrame:
         transition_matrix.loc[context, target] += 1
         # print(transition_matrix)
     return transition_matrix
+
+

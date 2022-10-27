@@ -10,14 +10,13 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from n_gram import get_n_grams, get_transition_matrix
+import n_gram as n_gram
 
 MAJOR_NUMERALS = Literal['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
                          'bI', 'bII', 'bIII', 'bIV', 'bV', 'bVI', 'bVII']
 
 MINOR_NUMERASL = Literal['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
                          'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
-
 
 MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major', 'E': 'major', 'F': 'major',
                          'G': 'major',
@@ -83,14 +82,14 @@ class PieceInfo:
 
     def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str) -> np.ndarray:
         key_val_list = self.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
-        n_grams = get_n_grams(sequence=key_val_list, n=n)
+        n_grams = n_gram.get_n_grams(sequence=key_val_list, n=n)
         return n_grams
 
     def get_transition_matrix(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
                               key: str,
                               probability: bool = False) -> pd.DataFrame:
         n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-        transition_matrix = get_transition_matrix(n_grams=n_grams)
+        transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
         if probability:
             transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
             return transition_prob
@@ -109,6 +108,18 @@ class PieceInfo:
                 raise ValueError
         else:
             return str('NA')
+
+    def get_localkey_lable_list(self):
+        localkey_list = self.get_aspect_df(aspect='harmonies', selected_keys=['localkey']).values.flatten().tolist()
+        prev = object()
+        localkey_list = [prev := v for v in localkey_list if prev != v]
+        return localkey_list
+
+    def get_modulation_bigrams(self):
+        localkey_list = self.get_localkey_lable_list()
+        modulation_bigrams = n_gram.get_n_grams(sequence=localkey_list, n=2)
+        modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
+        return modulation_bigrams
 
 
 @dataclass
@@ -212,6 +223,19 @@ class CorpusInfo:
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
+    def get_corpus_modulation_bigrams(self):
+        corpus_modulation_list = []
+        for idx, val in enumerate(self.annotated_piece_name_list):
+            piece = PieceInfo(parent_corpus_path=self.corpus_path, piece_name=val)
+            piece_modulation_df = pd.DataFrame(piece.get_modulation_bigrams(), columns=['modulations'])
+            piece_modulation_df['fname'] = val
+            piece_modulation_df['composed_end'] = \
+            self.metadata_df[self.metadata_df['fnames'] == val]['composed_end'].values[0]
+            piece_modulation_df['corpus'] = self.corpus_name
+            corpus_modulation_list.append(piece_modulation_df)
+        corpus_modulation_df = pd.concat(corpus_modulation_list, ignore_index=True)
+        return corpus_modulation_df
+
     def is_annotated(self) -> bool:
         # whether the entire corpus is (at least partially) annotated or not.
         if all([os.path.isdir(self.corpus_path + 'harmonies/'),
@@ -233,7 +257,7 @@ class CorpusInfo:
         corpus_n_grams = []
         for piece in self.annotated_piece_name_list:
             key_values_list = piece.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
-            piece_n_grams = get_n_grams(sequence=key_values_list, n=n)
+            piece_n_grams = n_gram.get_n_grams(sequence=key_values_list, n=n)
             corpus_n_grams.append(piece_n_grams)
         corpus_n_grams = np.concatenate(corpus_n_grams)
 
@@ -241,13 +265,17 @@ class CorpusInfo:
 
     def get_transition_matrix(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
                               key: str,
+                              select_top_ranking: Optional[int],
                               probability: bool = False) -> pd.DataFrame:
-        n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-        transition_matrix = get_transition_matrix(n_grams=n_grams)
-        if probability:
-            transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
-            return transition_prob
-        return transition_matrix
+        if select_top_ranking:
+            pass
+        else:
+            n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
+            transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
+            if probability:
+                transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
+                return transition_prob
+            return transition_matrix
 
 
 @dataclass
@@ -310,12 +338,36 @@ class MetaCorpraInfo:
                 unique_key_vals = df[key].unique().tolist()
                 return unique_key_vals
 
-    def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str):
+    def get_top_ranking_labels(self, top_pos: int, rank_by: Literal['count'],
+                               aspect: Literal['harmonies', 'measures', 'notes'], key: str) -> pd.DataFrame:
+
+        if rank_by == 'count':
+            label_list = self.get_corpora_aspect_df(aspect=aspect, selected_keys=[
+                key]).value_counts().to_frame().reset_index()
+            label_list.columns = [key, 'counts']
+
+            top_ranking_labels = label_list.iloc[:top_pos]
+
+            return top_ranking_labels
+        else:
+            raise NotImplementedError
+
+    def get_corpora_modulation_bigrams(self) -> pd.DataFrame:
+        corpora_modulation_list = []
+        for idx, val in enumerate(self.annotated_corpus_list):
+            corpus_modulation_df = val.get_corpus_modulation_bigrams()
+            corpora_modulation_list.append(corpus_modulation_df)
+        corpora_modulation_df = pd.concat(corpora_modulation_list, ignore_index=True)
+        return corpora_modulation_df
+
+    def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
+                    key: str):
 
         metacorpora_n_grams = []
         for corpus in self.corpus_list:
-            key_values_list = corpus.get_corpus_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
-            corpus_n_grams = get_n_grams(sequence=key_values_list, n=n)
+            key_values_list = corpus.get_corpus_aspect_df(aspect=aspect,
+                                                          selected_keys=[key]).values.flatten().tolist()
+            corpus_n_grams = n_gram.get_n_grams(sequence=key_values_list, n=n)
             metacorpora_n_grams.append(corpus_n_grams)
 
         metacorpora_n_grams = np.concatenate(metacorpora_n_grams)
@@ -326,7 +378,7 @@ class MetaCorpraInfo:
                               key: str,
                               probability: bool = False) -> pd.DataFrame:
         n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-        transition_matrix = get_transition_matrix(n_grams=n_grams)
+        transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
         if probability:
             transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
             return transition_prob
@@ -334,11 +386,24 @@ class MetaCorpraInfo:
 
 
 if __name__ == '__main__':
-    metacorpora_path = 'dcml_corpora/'
+    # metacorpora_path = 'dcml_corpora/'
+    # metacorpora = MetaCorpraInfo(metacorpora_path)
+    # major_minor_data_df = metacorpora.get_corpora_concat_metadata_df(
+    #     selected_keys=['corpus', 'fnames', 'composed_end', 'annotated_key'])
+    #
+    # major_minor_data_df['major/minor'] = major_minor_data_df['annotated_key'].map(MAJOR_MINOR_KEYS_Dict)
+    #
+    # print(major_minor_data_df)
+
+    metacorpora_path = 'romantic_piano_corpus/'
     metacorpora = MetaCorpraInfo(metacorpora_path)
-    major_minor_data_df = metacorpora.get_corpora_concat_metadata_df(
-        selected_keys=['corpus', 'fnames', 'composed_end', 'annotated_key'])
+    result = metacorpora.get_corpora_modulation_bigrams()
+    print(result['modulations'].unique())
 
-    major_minor_data_df['major/minor'] = major_minor_data_df['annotated_key'].map(MAJOR_MINOR_KEYS_Dict)
+    # corpus = CorpusInfo('romantic_piano_corpus/debussy_suite_bergamasque/')
+    # corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
+    # corpus = CorpusInfo(corpus_path)
 
-    print(major_minor_data_df)
+    # result = corpus.metadata_df[corpus.metadata_df['fnames'] == 'l075-01_suite_prelude']['composed_end'].values[0]
+    # print(result)
+
