@@ -277,6 +277,22 @@ class CorpusInfo:
                 return transition_prob
             return transition_matrix
 
+    def get_modulation_data_df(self) -> pd.DataFrame:
+        modulation_df_list = []
+        for idx, val in enumerate(self.annotated_piece_name_list):
+            piece = PieceInfo(parent_corpus_path=self.corpus_path, piece_name=val)
+            corpus_name = piece.corpus_name
+            fname = piece.piece_name
+            composed_end_yr = self.metadata_df[self.metadata_df['fnames'] == val]['composed_end'].values[0]
+            localkey_labels = '-'.join(piece.get_localkey_lable_list())
+            num_modulations = len(piece.get_localkey_lable_list())
+            modulation_data_list = list([corpus_name, fname, composed_end_yr, localkey_labels, num_modulations])
+            modulation_df_list.append(modulation_data_list)
+
+        modulation_df = pd.DataFrame(modulation_df_list,
+                                     columns=['corpus', 'fname', 'composed_end', 'localkey_labels', 'num_modulations'])
+        return modulation_df
+
 
 @dataclass
 class MetaCorpraInfo:
@@ -395,15 +411,17 @@ if __name__ == '__main__':
     #
     # print(major_minor_data_df)
 
-    metacorpora_path = 'romantic_piano_corpus/'
-    metacorpora = MetaCorpraInfo(metacorpora_path)
-    result = metacorpora.get_corpora_modulation_bigrams()
-    print(result['modulations'].unique())
+    # metacorpora_path = 'romantic_piano_corpus/'
+    # metacorpora = MetaCorpraInfo(metacorpora_path)
+    # result = metacorpora.get_corpora_modulation_bigrams()
+    # print(result['modulations'].unique())
 
-    # corpus = CorpusInfo('romantic_piano_corpus/debussy_suite_bergamasque/')
-    # corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
-    # corpus = CorpusInfo(corpus_path)
+    corpus = CorpusInfo('romantic_piano_corpus/debussy_suite_bergamasque/')
+    corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
+    corpus = CorpusInfo(corpus_path)
 
     # result = corpus.metadata_df[corpus.metadata_df['fnames'] == 'l075-01_suite_prelude']['composed_end'].values[0]
     # print(result)
 
+    result = corpus.modulation_data_df()
+    print(result)

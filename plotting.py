@@ -30,15 +30,14 @@ def transition_prob_heatmap_data(transition_prob: pd.DataFrame) -> plt.Figure:
 
 
 if __name__ == '__main__':
-    # metacorpora_path = 'romantic_piano_corpus/'
-    # metacorpora = MetaCorpraInfo(metacorpora_path)
-    corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
-    corpus = CorpusInfo(corpus_path)
+    metacorpora_path = 'petit_dcml_corpus/'
+    metacorpora = MetaCorpraInfo(metacorpora_path)
 
-    for idx, val in enumerate(corpus.annotated_piece_name_list):
-        piece = PieceInfo(parent_corpus_path=corpus_path, piece_name=val)
+    modulation_df_list = []
+    for idx, val in enumerate(metacorpora.corpus_name_list):
+        corpus = CorpusInfo(corpus_path=metacorpora_path + val + '/')
+        corpus_modulation_df = corpus.get_modulation_data_df()
+        modulation_df_list.append(corpus_modulation_df)
 
-        df2use_list=[]
-        unique_mod_key_list = []
-        if piece.globalkey=='MAJOR':
-            modulation_key_list = piece.get_modulation_list()
+    modulation_df = pd.concat(modulation_df_list, ignore_index=True)
+    print(modulation_df)
