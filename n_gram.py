@@ -23,18 +23,5 @@ def get_transition_matrix(n_grams: np.ndarray) -> pd.DataFrame:
         # print(transition_matrix)
     return transition_matrix
 
-# =============================
-# modulation                  |
-# =============================
 
-MAJOR_NUMERALS = Literal['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
-                         'bI', 'bII', 'bIII', 'bIV', 'bV', 'bVI', 'bVII']
 
-MINOR_NUMERALS = Literal['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
-                         'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
-
-def partition_modualtion_bigrams_by_types(localkey_bigrams_list: List[str], partition_types: Literal['MM', 'Mm', 'mM', 'mm']):
-    if partition_types is 'MM':
-        MM = []
-        for idx, val in enumerate(localkey_bigrams_list):
-            pass

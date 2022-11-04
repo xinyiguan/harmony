@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-import processing
+import n_gram
 
 MAJOR_NUMERALS = Literal['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
                          'bI', 'bII', 'bIII', 'bIV', 'bV', 'bVI', 'bVII']
@@ -115,7 +115,7 @@ class PieceInfo:
         localkey_list = [prev := v for v in localkey_list if prev != v]
         return localkey_list
 
-    def get_modulation_bigrams(self) -> List[str]:
+    def get_localkey_bigrams(self) -> List[str]:
         # the representation of the items in modulation_bigrams list looks like: I_V, V_vi ....
         localkey_list = self.get_localkey_lable_list()
         modulation_bigrams = processing.get_n_grams(sequence=localkey_list, n=2)
@@ -224,11 +224,11 @@ class CorpusInfo:
             unique_key_vals = df[key].unique().tolist()
             return unique_key_vals
 
-    def get_corpus_modulation_bigrams(self):
+    def get_corpus_localkey_bigrams(self):
         corpus_modulation_list = []
         for idx, val in enumerate(self.annotated_piece_name_list):
             piece = PieceInfo(parent_corpus_path=self.corpus_path, piece_name=val)
-            piece_modulation_df = pd.DataFrame(piece.get_modulation_bigrams(), columns=['modulations'])
+            piece_modulation_df = pd.DataFrame(piece.get_localkey_bigrams(), columns=['modulations'])
             piece_modulation_df['fname'] = val
             piece_modulation_df['composed_end'] = \
                 self.metadata_df[self.metadata_df['fnames'] == val]['composed_end'].values[0]
