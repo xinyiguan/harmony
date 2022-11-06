@@ -1,7 +1,6 @@
 """
 The loader contains three class to read the
 """
-import fnmatch
 import os
 from dataclasses import dataclass
 from typing import List, Optional, Literal
@@ -31,6 +30,8 @@ MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major',
                          'ab': 'minor', 'bb': 'minor', 'cb': 'minor', 'db': 'minor', 'eb': 'minor',
                          'fb': 'minor', 'gb': 'minor'}
 
+TIME_PERIOD = {'Renaissance': 1649, 'Baroque': 1758, 'Classical': 1817, 'Early Romantic': 1856, 'Late Romantic': 1857}
+
 
 @dataclass
 class PieceInfo:
@@ -45,7 +46,7 @@ class PieceInfo:
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                       selected_keys: Optional[List[str]]) -> pd.DataFrame:
         """
-        To get the piece-wise aspect(harmonies/measures/notes) tsv files as a DataFrame, always attach metadata (parent corpus, fname)
+        To get the piecewise aspect(harmonies/measures/notes) tsv files as a DataFrame, always attach metadata (parent corpus, fname)
         :param: selected_keys: a list of keys (such as 'chord','numeral') in the tsv file. If none (default), select all keys.
         :return: a DataFrame
         """
@@ -82,14 +83,14 @@ class PieceInfo:
 
     def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str) -> np.ndarray:
         key_val_list = self.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
-        n_grams = processing.get_n_grams(sequence=key_val_list, n=n)
+        n_grams = n_gram.get_n_grams(sequence=key_val_list, n=n)
         return n_grams
 
     def get_transition_matrix(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
                               key: str,
                               probability: bool = False) -> pd.DataFrame:
         n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-        transition_matrix = processing.get_transition_matrix(n_grams=n_grams)
+        transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
         if probability:
             transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
             return transition_prob
@@ -118,7 +119,7 @@ class PieceInfo:
     def get_localkey_bigrams(self) -> List[str]:
         # the representation of the items in modulation_bigrams list looks like: I_V, V_vi ....
         localkey_list = self.get_localkey_lable_list()
-        modulation_bigrams = processing.get_n_grams(sequence=localkey_list, n=2)
+        modulation_bigrams = n_gram.get_n_grams(sequence=localkey_list, n=2)
         modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
         return modulation_bigrams
 
@@ -258,7 +259,7 @@ class CorpusInfo:
         corpus_n_grams = []
         for piece in self.annotated_piece_name_list:
             key_values_list = piece.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
-            piece_n_grams = processing.get_n_grams(sequence=key_values_list, n=n)
+            piece_n_grams = n_gram.get_n_grams(sequence=key_values_list, n=n)
             corpus_n_grams.append(piece_n_grams)
         corpus_n_grams = np.concatenate(corpus_n_grams)
 
@@ -272,7 +273,7 @@ class CorpusInfo:
             pass
         else:
             n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-            transition_matrix = processing.get_transition_matrix(n_grams=n_grams)
+            transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
             if probability:
                 transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
                 return transition_prob
@@ -384,7 +385,7 @@ class MetaCorpraInfo:
         for corpus in self.corpus_list:
             key_values_list = corpus.get_corpus_aspect_df(aspect=aspect,
                                                           selected_keys=[key]).values.flatten().tolist()
-            corpus_n_grams = processing.get_n_grams(sequence=key_values_list, n=n)
+            corpus_n_grams = n_gram.get_n_grams(sequence=key_values_list, n=n)
             metacorpora_n_grams.append(corpus_n_grams)
 
         metacorpora_n_grams = np.concatenate(metacorpora_n_grams)
@@ -395,7 +396,7 @@ class MetaCorpraInfo:
                               key: str,
                               probability: bool = False) -> pd.DataFrame:
         n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-        transition_matrix = processing.get_transition_matrix(n_grams=n_grams)
+        transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
         if probability:
             transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
             return transition_prob

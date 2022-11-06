@@ -1,6 +1,7 @@
 # =============================
 # modulation                  |
 # =============================
+
 from typing import List, Literal
 
 import numpy as np
