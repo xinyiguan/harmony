@@ -8,25 +8,6 @@ from loader import MetaCorpraInfo, CorpusInfo, PieceInfo
 import modulation
 import seaborn as sns
 
-
-def transition_prob_heatmap_data(transition_prob: pd.DataFrame) -> plt.Figure:
-    grid_kws = {"height_ratios": (.9, .05), "hspace": .1}
-    fig, (ax, cbar_ax) = plt.subplots(2, figsize=(20, 20), gridspec_kw=grid_kws)
-
-    sns.heatmap(transition_prob, ax=ax, square=False, vmin=0, vmax=1, cbar=True,
-                cbar_ax=cbar_ax, cmap=sns.cubehelix_palette(as_cmap=True), annot=True, fmt='.2f',
-                cbar_kws={"orientation": "horizontal", "fraction": 0.1,
-                          "label": "Transition probability"})
-
-    ax.set_xlabel("Target chord")
-    ax.xaxis.tick_top()
-    ax.set_ylabel("Origin chord")
-    ax.xaxis.set_label_position('top')
-    plt.show()
-    return fig
-
-
-
 def get_modulation_steps_facetgrid_data(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
     """
 
@@ -68,19 +49,16 @@ def get_modulation_steps_facetgrid_data(data_source: Union[MetaCorpraInfo, Corpu
     elif isinstance(data_source, MetaCorpraInfo):
         raise NotImplementedError
 
-# def modulation_steps_distribution_histplots():
 
+def key_modulation_steps_facetgrid(modulation_data: pd.DataFrame):
+    fig, axes = plt.subplots(2, 2, figsize=(15, 15))
+    sns.histplot(ax=axes[0, 0], data=modulation_data, x='interval')
+    axes[0, 0].set_title('MM')
+    sns.histplot(ax=axes[0, 1], data=modulation_data.loc['Mm'])
+    axes[0, 1].set_title('Mm')
+    sns.histplot(ax=axes[1, 0], data=modulation_data.loc['mM'])
+    axes[1, 0].set_title('mM')
+    sns.histplot(ax=axes[1, 1], data=modulation_data.loc['mm'])
+    axes[1, 1].set_title('mm')
 
-
-
-if __name__ == '__main__':
-    metacorpora_path = 'petit_dcml_corpus/'
-    corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
-    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
-    result = get_modulation_steps_facetgrid_data(piece)
-    print(result)
-    sns.catplot(data=result, x="interval", stat='count')
     plt.show()
-
-
-# https://seaborn.pydata.org/tutorial/categorical.html#categorical-tutorial

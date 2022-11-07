@@ -2,6 +2,7 @@
 The loader contains three class to read the
 """
 import os
+from collections import namedtuple
 from dataclasses import dataclass
 from typing import List, Optional, Literal
 
@@ -41,7 +42,7 @@ class PieceInfo:
 
     def __post_init__(self):
         self.corpus_name: str = self.parent_corpus_path.split(os.sep)[-2]
-        self.globalkey: str = self._global_key()
+        self.globalmode: str = self._global_mode()
 
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                       selected_keys: Optional[List[str]]) -> pd.DataFrame:
@@ -96,7 +97,7 @@ class PieceInfo:
             return transition_prob
         return transition_matrix
 
-    def _global_key(self):
+    def _global_mode(self):
 
         if 'globalkey_is_minor' in self.get_aspect_df(aspect='harmonies', selected_keys=None).columns:
             key = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey_is_minor'])[
@@ -116,13 +117,33 @@ class PieceInfo:
         localkey_list = [prev := v for v in localkey_list if prev != v]
         return localkey_list
 
-    def get_localkey_bigrams(self) -> List[str]:
-        # the representation of the items in modulation_bigrams list looks like: I_V, V_vi ....
+    def get_modulation_bigram_namedtuples_list(self) -> List:
+        """
+        :return:
+        """
+        ModulationBigram = namedtuple('ModulationBigram', ['globalkey', 'modulation_bigrams'])
+        ModulationBigram_list = []
+
+        globalkey = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
         localkey_list = self.get_localkey_lable_list()
         modulation_bigrams = n_gram.get_n_grams(sequence=localkey_list, n=2)
         modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
-        return modulation_bigrams
 
+        for idx, val in enumerate(modulation_bigrams):
+            mod_bigram = ModulationBigram(globalkey=globalkey, modulation_bigrams=val)
+            ModulationBigram_list.append(mod_bigram)
+
+        return ModulationBigram_list
+
+
+    def get_modulation_bigrams_with_globalkey(self):
+        globalkey = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
+        localkey_list = self.get_localkey_lable_list()
+        modulation_bigrams = n_gram.get_n_grams(sequence=localkey_list, n=2)
+        modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
+
+        globalkey_modulation_bigrams = [globalkey+'_'+item for idx, item in enumerate(modulation_bigrams)]
+        return globalkey_modulation_bigrams
 
 @dataclass
 class CorpusInfo:
@@ -420,10 +441,6 @@ if __name__ == '__main__':
 
     corpus = CorpusInfo('romantic_piano_corpus/debussy_suite_bergamasque/')
     corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
-    corpus = CorpusInfo(corpus_path)
-
-    # result = corpus.metadata_df[corpus.metadata_df['fnames'] == 'l075-01_suite_prelude']['composed_end'].values[0]
-    # print(result)
-
-    result = corpus.modulation_data_df()
-    print(result)
+    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
+    bigrams = piece.get_modulation_bigrams_with_globalkey()
+    print(bigrams)
