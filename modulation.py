@@ -3,10 +3,6 @@
 # =============================
 
 from typing import List, Literal
-
-import numpy as np
-import pandas as pd
-from pitchtypes import AbstractBase
 import pitchtypes
 
 MAJOR_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
@@ -118,7 +114,9 @@ def partition_modualtion_bigrams_by_types(modulation_bigrams_list: List[str],
         return mm
 
 
-def compute_modulation_steps(partitioned_bigrams_list: List[str], partition_type: Literal['MM', 'Mm', 'mM', 'mm']):
+def compute_modulation_steps(partitioned_bigrams_list: List[str],
+                             partition_type: Literal['MM', 'Mm', 'mM', 'mm'],
+                             fifths: bool = False):
     """
     Compute the modulation steps between the origin key and the target key.
     :param partitioned_bigrams_list:
@@ -149,7 +147,12 @@ def compute_modulation_steps(partitioned_bigrams_list: List[str], partition_type
             get_key(my_dict=key_dict_2, val=following_RN))
 
         interval = following_SP - preceding_SP
-        modulation_steps_list.append(interval)
+
+        if fifths:
+            modulation_steps_in_fifths = interval.fifths()
+            modulation_steps_list.append(modulation_steps_in_fifths)
+        else:
+            modulation_steps_list.append(interval)
     return modulation_steps_list
 
 
@@ -160,6 +163,7 @@ if __name__ == '__main__':
     mM = ['F_vi_I', 'F_iv_I', 'F_vi_V', 'F_iv_V', 'F_iii_I']
 
     result = compute_modulation_steps(partitioned_bigrams_list=MM, partition_type='MM')
+    result2 = compute_modulation_steps(partitioned_bigrams_list=MM, partition_type='MM', fifths=True)
 
     print(result)
-
+    print(result2)
