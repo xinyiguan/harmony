@@ -119,6 +119,7 @@ def compute_modulation_steps(partitioned_bigrams_list: List[str],
                              fifths: bool = False):
     """
     Compute the modulation steps between the origin key and the target key.
+    :param fifths: bool, interval on the line of fifths
     :param partitioned_bigrams_list:
     :param partition_type:
     :return:

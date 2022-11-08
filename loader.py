@@ -43,6 +43,7 @@ class PieceInfo:
     def __post_init__(self):
         self.corpus_name: str = self.parent_corpus_path.split(os.sep)[-2]
         self.globalmode: str = self._global_mode()
+        self.composed_year: int = self._get_composed_year()
 
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                       selected_keys: Optional[List[str]]) -> pd.DataFrame:
@@ -97,6 +98,12 @@ class PieceInfo:
             return transition_prob
         return transition_matrix
 
+    def _get_composed_year(self) -> int:
+        metadata_tsv_df = pd.read_csv(self.parent_corpus_path + 'metadata.tsv', sep='\t')
+        composed_year_df = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == self.piece_name]['composed_end']
+        composed_year = composed_year_df.values[0]
+        return composed_year
+
     def _global_mode(self):
 
         if 'globalkey_is_minor' in self.get_aspect_df(aspect='harmonies', selected_keys=None).columns:
@@ -135,15 +142,15 @@ class PieceInfo:
 
         return ModulationBigram_list
 
-
     def get_modulation_bigrams_with_globalkey(self):
         globalkey = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
         localkey_list = self.get_localkey_lable_list()
         modulation_bigrams = n_gram.get_n_grams(sequence=localkey_list, n=2)
         modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
 
-        globalkey_modulation_bigrams = [globalkey+'_'+item for idx, item in enumerate(modulation_bigrams)]
+        globalkey_modulation_bigrams = [globalkey + '_' + item for idx, item in enumerate(modulation_bigrams)]
         return globalkey_modulation_bigrams
+
 
 @dataclass
 class CorpusInfo:
@@ -441,6 +448,6 @@ if __name__ == '__main__':
 
     corpus = CorpusInfo('romantic_piano_corpus/debussy_suite_bergamasque/')
     corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
-    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
-    bigrams = piece.get_modulation_bigrams_with_globalkey()
-    print(bigrams)
+    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-04_suite_passepied')
+    year= piece.composed_year
+    print(year)
