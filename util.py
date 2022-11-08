@@ -1,14 +1,53 @@
-# =============================
-# modulation                  |
-# =============================
+# Created by Xinyi Guan in 2022.
 
-from typing import List, Literal
+from typing import List, Literal, Union
 import pitchtypes
+import numpy as np
+import pandas as pd
+from scipy.stats import entropy
 
-MAJOR_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
+
+# ===================================
+# n-gram                            |
+# ===================================
+
+def get_n_grams(sequence: List[str], n: int) -> np.ndarray:
+    """
+    Transform a list of string to a list of n-grams.
+    :param sequence:
+    :param n:
+    :return:
+    """
+    transitions = np.array(
+        [['_'.join(sequence[i - (n - 1):i]), sequence[i]] for i in range(n - 1, len(sequence))])
+    return transitions
+
+
+def get_transition_matrix(n_grams: np.ndarray) -> pd.DataFrame:
+    """
+    Transform the n-gram np-array to a transition matrix dataframe
+    :param n_grams:
+    :return:
+    """
+    contexts, targets = np.unique(n_grams[:, 0]), np.unique(n_grams[:, 1])
+    transition_matrix = pd.DataFrame(0, columns=targets, index=contexts)
+    for i, n_gram in enumerate(n_grams):
+        context, target = n_gram[0], n_gram[1]
+        transition_matrix.loc[context, target] += 1
+        # print(transition_matrix)
+    return transition_matrix
+
+
+# ===================================
+# modulation                        |
+# ===================================
+
+MAJOR_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII',
+                  '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
                   'bI', 'bII', 'bIII', 'bIV', 'bV', 'bVI', 'bVII']
 
-MINOR_NUMERALS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
+MINOR_NUMERALS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii',
+                  '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
                   'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
 
 MAJOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS = {'C': 'I',
@@ -136,7 +175,7 @@ def compute_modulation_steps(partitioned_bigrams_list: List[str],
     mode_dict_mapping = {'M': MAJOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS,
                          'm': MINOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS}
 
-    key_dict_1,key_dict_2 = (mode_dict_mapping.get(mode) for mode in partition_type)
+    key_dict_1, key_dict_2 = (mode_dict_mapping.get(mode) for mode in partition_type)
 
     for idx, val in enumerate(partitioned_bigrams_list):
         preceding_RN = val.split('_')[1]
@@ -155,6 +194,8 @@ def compute_modulation_steps(partitioned_bigrams_list: List[str],
         else:
             modulation_steps_list.append(interval)
     return modulation_steps_list
+
+
 
 
 if __name__ == '__main__':

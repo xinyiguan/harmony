@@ -1,8 +1,7 @@
 """
-The loader contains three class to read the
+The loader contains three class to read the data
 """
 import os
-from collections import namedtuple
 from dataclasses import dataclass
 from typing import List, Optional, Literal
 
@@ -10,33 +9,12 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
-import n_gram
-
-MAJOR_NUMERALS = Literal['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', '#I', '#II', '#III', '#IV', '#V', '#VI', '#VII',
-                         'bI', 'bII', 'bIII', 'bIV', 'bV', 'bVI', 'bVII']
-
-MINOR_NUMERASL = Literal['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
-                         'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
-
-MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major', 'E': 'major', 'F': 'major',
-                         'G': 'major',
-                         'A#': 'major', 'B#': 'major', 'C#': 'major', 'D#': 'major', 'E#': 'major', 'F#': 'major',
-                         'G#': 'major',
-                         'Ab': 'major', 'Bb': 'major', 'Cb': 'major', 'Db': 'major', 'Eb': 'major', 'Fb': 'major',
-                         'Gb': 'major',
-                         'a': 'minor', 'b': 'minor', 'c': 'minor', 'd': 'minor', 'e': 'minor',
-                         'f': 'minor', 'g': 'minor',
-                         'a#': 'minor', 'b#': 'minor', 'c#': 'minor', 'd#': 'minor', 'e#': 'minor', 'f#': 'minor',
-                         'g#': 'minor',
-                         'ab': 'minor', 'bb': 'minor', 'cb': 'minor', 'db': 'minor', 'eb': 'minor',
-                         'fb': 'minor', 'gb': 'minor'}
-
-TIME_PERIOD = {'Renaissance': 1649, 'Baroque': 1758, 'Classical': 1817, 'Early Romantic': 1856, 'Late Romantic': 1857}
+import util
 
 
 @dataclass
 class PieceInfo:
-    # assuming we are inside the corpus folder
+    # containing the data for a single piece
     parent_corpus_path: str
     piece_name: str
 
@@ -48,7 +26,7 @@ class PieceInfo:
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                       selected_keys: Optional[List[str]]) -> pd.DataFrame:
         """
-        To get the piecewise aspect(harmonies/measures/notes) tsv files as a DataFrame, always attach metadata (parent corpus, fname)
+        To read the piecewise aspect(harmonies/measures/notes) tsv files as a DataFrame, always attach metadata (parent corpus, fname)
         :param: selected_keys: a list of keys (such as 'chord','numeral') in the tsv file. If none (default), select all keys.
         :return: a DataFrame
         """
@@ -85,14 +63,14 @@ class PieceInfo:
 
     def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str) -> np.ndarray:
         key_val_list = self.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
-        n_grams = n_gram.get_n_grams(sequence=key_val_list, n=n)
+        n_grams = util.get_n_grams(sequence=key_val_list, n=n)
         return n_grams
 
     def get_transition_matrix(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
                               key: str,
                               probability: bool = False) -> pd.DataFrame:
         n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-        transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
+        transition_matrix = util.get_transition_matrix(n_grams=n_grams)
         if probability:
             transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
             return transition_prob
@@ -124,28 +102,10 @@ class PieceInfo:
         localkey_list = [prev := v for v in localkey_list if prev != v]
         return localkey_list
 
-    def get_modulation_bigram_namedtuples_list(self) -> List:
-        """
-        :return:
-        """
-        ModulationBigram = namedtuple('ModulationBigram', ['globalkey', 'modulation_bigrams'])
-        ModulationBigram_list = []
-
-        globalkey = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
-        localkey_list = self.get_localkey_lable_list()
-        modulation_bigrams = n_gram.get_n_grams(sequence=localkey_list, n=2)
-        modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
-
-        for idx, val in enumerate(modulation_bigrams):
-            mod_bigram = ModulationBigram(globalkey=globalkey, modulation_bigrams=val)
-            ModulationBigram_list.append(mod_bigram)
-
-        return ModulationBigram_list
-
     def get_modulation_bigrams_with_globalkey(self):
         globalkey = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
         localkey_list = self.get_localkey_lable_list()
-        modulation_bigrams = n_gram.get_n_grams(sequence=localkey_list, n=2)
+        modulation_bigrams = util.get_n_grams(sequence=localkey_list, n=2)
         modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
 
         globalkey_modulation_bigrams = [globalkey + '_' + item for idx, item in enumerate(modulation_bigrams)]
@@ -154,7 +114,7 @@ class PieceInfo:
 
 @dataclass
 class CorpusInfo:
-    # the pieces list is already filtered with annotated pieces
+    # containing data for a single corpus
     corpus_path: str
 
     def __post_init__(self):
@@ -283,11 +243,10 @@ class CorpusInfo:
 
     def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str):
 
-        # pieces = self.piece_list
         corpus_n_grams = []
         for piece in self.annotated_piece_name_list:
             key_values_list = piece.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
-            piece_n_grams = n_gram.get_n_grams(sequence=key_values_list, n=n)
+            piece_n_grams = util.get_n_grams(sequence=key_values_list, n=n)
             corpus_n_grams.append(piece_n_grams)
         corpus_n_grams = np.concatenate(corpus_n_grams)
 
@@ -301,7 +260,7 @@ class CorpusInfo:
             pass
         else:
             n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-            transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
+            transition_matrix = util.get_transition_matrix(n_grams=n_grams)
             if probability:
                 transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
                 return transition_prob
@@ -326,6 +285,7 @@ class CorpusInfo:
 
 @dataclass
 class MetaCorpraInfo:
+    # containing data for a collection of corpora
     meta_corpora_path: str
 
     def __post_init__(self):
@@ -413,7 +373,7 @@ class MetaCorpraInfo:
         for corpus in self.corpus_list:
             key_values_list = corpus.get_corpus_aspect_df(aspect=aspect,
                                                           selected_keys=[key]).values.flatten().tolist()
-            corpus_n_grams = n_gram.get_n_grams(sequence=key_values_list, n=n)
+            corpus_n_grams = util.get_n_grams(sequence=key_values_list, n=n)
             metacorpora_n_grams.append(corpus_n_grams)
 
         metacorpora_n_grams = np.concatenate(metacorpora_n_grams)
@@ -424,30 +384,55 @@ class MetaCorpraInfo:
                               key: str,
                               probability: bool = False) -> pd.DataFrame:
         n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-        transition_matrix = n_gram.get_transition_matrix(n_grams=n_grams)
+        transition_matrix = util.get_transition_matrix(n_grams=n_grams)
         if probability:
             transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
             return transition_prob
         return transition_matrix
 
+    def partition_corpora_list_by_era_into_dict(self):
+        corpora_dict_by_era = {}
+        Renaissance = []
+        Baroque = []
+        Classical = []
+        Early_Romantic = []
+        Late_Romantic = []
+
+        for idx, corpus in enumerate(metacorpora.annotated_corpus_list):
+
+            year_unique = corpus.metadata_df['composed_end'].unique()
+            if len(year_unique) > 1:
+                avg_comp_year = int(
+                    year_unique.mean())  # assuming the corpus (by individual composer) falls in one era.
+            else:
+                avg_comp_year = year_unique[0]
+
+            if 0 < avg_comp_year < 1650:
+                Renaissance.append(corpus)
+                corpora_dict_by_era['Renaissance'] = Renaissance
+
+            elif 1649 < avg_comp_year < 1759:
+                Baroque.append(corpus)
+                corpora_dict_by_era['Baroque'] = Baroque
+
+            elif 1758 < avg_comp_year < 1819:
+                Classical.append(corpus)
+                corpora_dict_by_era['Classical'] = Classical
+
+            elif 1817 < avg_comp_year < 1857:
+                Early_Romantic.append(corpus)
+                corpora_dict_by_era['Early_Romantic'] = Early_Romantic
+
+            elif 1856 < avg_comp_year < 1931:
+                Late_Romantic.append(corpus)
+                corpora_dict_by_era['Late_Romantic'] = Late_Romantic
+
+        return corpora_dict_by_era
+
 
 if __name__ == '__main__':
-    # metacorpora_path = 'dcml_corpora/'
-    # metacorpora = MetaCorpraInfo(metacorpora_path)
-    # major_minor_data_df = metacorpora.get_corpora_concat_metadata_df(
-    #     selected_keys=['corpus', 'fnames', 'composed_end', 'annotated_key'])
-    #
-    # major_minor_data_df['major/minor'] = major_minor_data_df['annotated_key'].map(MAJOR_MINOR_KEYS_Dict)
-    #
-    # print(major_minor_data_df)
+    meta_corpora_path = 'petit_dcml_corpus/'
+    metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
 
-    # metacorpora_path = 'romantic_piano_corpus/'
-    # metacorpora = MetaCorpraInfo(metacorpora_path)
-    # result = metacorpora.get_corpora_modulation_bigrams()
-    # print(result['modulations'].unique())
-
-    corpus = CorpusInfo('romantic_piano_corpus/debussy_suite_bergamasque/')
-    corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
-    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-04_suite_passepied')
-    year= piece.composed_year
-    print(year)
+    result = metacorpora.partition_corpora_list_by_era_into_dict()
+    print(result)
