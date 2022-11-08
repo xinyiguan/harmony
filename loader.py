@@ -434,5 +434,5 @@ if __name__ == '__main__':
     meta_corpora_path = 'petit_dcml_corpus/'
     metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
 
-    result = metacorpora.partition_corpora_list_by_era_into_dict()
+    result = metacorpora.get_corpora_concat_metadata_df(selected_keys=['composed_end']).min()
     print(result)

@@ -35,10 +35,10 @@ def determine_era_based_on_year(year) -> str:
         return 'Classical'
 
     elif 1817 < year < 1857:
-        return 'Early_Romantic'
+        return 'Early Rom.'
 
     elif 1856 < year < 1931:
-        return 'Late_Romantic'
+        return 'Late Rom'
 
 
 def piecewise_modulation_data_with_transition_types_df(piece: PieceInfo, modulations_bigrams_RN: List):
@@ -99,8 +99,10 @@ def piecewise_modulation_steps_data_df(this_piece: PieceInfo):
     interval_df = get_modulation_steps_with_transition_types_data(this_piece)
     modulation_data_df = interval_df['interval'].value_counts().reset_index().rename(
         columns={'index': 'interval', 'interval': 'count'})
-    modulation_data_df['year'] = [this_piece.composed_year] * modulation_data_df.shape[0]
-    modulation_data_df['era'] = [determine_era_based_on_year(this_piece.composed_year)] * modulation_data_df.shape[0]
+    length = modulation_data_df.shape[0].shape[0]
+    modulation_data_df['year'] = [this_piece.composed_year] * length
+    modulation_data_df['era'] = [determine_era_based_on_year(this_piece.composed_year)] * length
+    modulation_data_df['corpus'] = [this_piece.corpus_name] * length
     return modulation_data_df
 
 
@@ -138,6 +140,18 @@ def get_modulation_steps_data(data_source: Union[MetaCorpraInfo, CorpusInfo, Pie
         return heatmap_data
 
 
+def plot_chronological_modulation_steps_facetgrid(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
+    df = get_modulation_steps_data(data_source=data_source)
+
+    # Initialize a grid of plots with an Axes for each walk
+    grid = sns.FacetGrid(df, col="era", hue="era", palette="tab20c", height=1.5)
+
+    # https://seaborn.pydata.org/examples/many_facets.html
+
+
+
+    pass
+
 if __name__ == '__main__':
     metacorpora_path = 'petit_dcml_corpus/'
     corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
@@ -148,3 +162,5 @@ if __name__ == '__main__':
 
     result = get_modulation_steps_with_transition_types_data(data_source=metacorpora)
 
+    sns.jointplot(data=result, x='era', y='interval', kind='hist', bins=50)
+    plt.show()
