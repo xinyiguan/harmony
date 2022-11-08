@@ -1,12 +1,10 @@
-from typing import Union, Optional, List
-
-import numpy as np
+from typing import Union, List
 import pandas as pd
+import seaborn as sns
 from matplotlib import pyplot as plt
 
+import util
 from loader import MetaCorpraInfo, CorpusInfo, PieceInfo
-import modulation
-import seaborn as sns
 
 
 def transition_prob_heatmap(transition_prob: pd.DataFrame) -> plt.Figure:
@@ -26,49 +24,49 @@ def transition_prob_heatmap(transition_prob: pd.DataFrame) -> plt.Figure:
     return fig
 
 
-def piecewise_modulation_df_prototype(piece: PieceInfo, modulations_bigrams_RN: List):
-    MM = modulation.partition_modualtion_bigrams_by_types(modulations_bigrams_RN, partition_types='MM')
-    MM_steps = modulation.compute_modulation_steps(MM, partition_type='MM', fifths=True)
-    MM_modulation_df = pd.DataFrame(MM_steps, columns=['interval'])
-    MM_modulation_df['type'] = ['MM'] * MM_modulation_df.shape[0]
-    MM_modulation_df['year'] = [piece.composed_year] * MM_modulation_df.shape[0]
+def determine_era_based_on_year(year) -> str:
+    if 0 < year < 1650:
+        return 'Renaissance'
 
-    Mm = modulation.partition_modualtion_bigrams_by_types(modulations_bigrams_RN, partition_types='Mm')
-    Mm_steps = modulation.compute_modulation_steps(Mm, partition_type='Mm', fifths=True)
-    Mm_modulation_df = pd.DataFrame(Mm_steps, columns=['interval'])
-    Mm_modulation_df['type'] = ['Mm'] * Mm_modulation_df.shape[0]
-    Mm_modulation_df['year'] = [piece.composed_year] * Mm_modulation_df.shape[0]
+    elif 1649 < year < 1759:
+        return 'Baroque'
 
-    mM = modulation.partition_modualtion_bigrams_by_types(modulations_bigrams_RN, partition_types='mM')
-    mM_steps = modulation.compute_modulation_steps(mM, partition_type='mM', fifths=True)
-    mM_modulation_df = pd.DataFrame(mM_steps, columns=['interval'])
-    mM_modulation_df['type'] = ['mM'] * mM_modulation_df.shape[0]
-    mM_modulation_df['year'] = [piece.composed_year] * mM_modulation_df.shape[0]
+    elif 1758 < year < 1819:
+        return 'Classical'
 
-    mm = modulation.partition_modualtion_bigrams_by_types(modulations_bigrams_RN, partition_types='mm')
-    mm_steps = modulation.compute_modulation_steps(mm, partition_type='mm', fifths=True)
-    mm_modulation_df = pd.DataFrame(mm_steps, columns=['interval'])
-    mm_modulation_df['type'] = ['mm'] * mm_modulation_df.shape[0]
-    mm_modulation_df['year'] = [piece.composed_year] * mm_modulation_df.shape[0]
+    elif 1817 < year < 1857:
+        return 'Early_Romantic'
 
-    modulation_df = pd.concat(
-        [MM_modulation_df, Mm_modulation_df, mM_modulation_df, mm_modulation_df])
-    return modulation_df
+    elif 1856 < year < 1931:
+        return 'Late_Romantic'
 
 
-def get_modulation_steps_displot_data(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
-    """
-    With transition mode type : MM, Mm, mM, mm
-    df format: [interval, type, year] list every occurring interval in occuring order.
-    :param data_source:
-    :return:
-    """
+def piecewise_modulation_data_with_transition_types_df(piece: PieceInfo, modulations_bigrams_RN: List):
+    """Get the dataframe containing modulation-relevant [interval, type, year, era, corpus] of a piece"""
+    dfs = []
+    for partition_type in ['MM', 'Mm', 'mM', 'mm']:
+        bigrams = util.partition_modualtion_bigrams_by_types(modulations_bigrams_RN, partition_types=partition_type)
+        steps = util.compute_modulation_steps(bigrams, partition_type=partition_type, fifths=True)
+        modulation_df = pd.DataFrame(steps, columns=['interval'])
+        length = modulation_df.shape[0]
+        modulation_df['type'] = [partition_type] * length
+        modulation_df['year'] = [piece.composed_year] * length
+        modulation_df['era'] = [determine_era_based_on_year(piece.composed_year)] * length
+        modulation_df['corpus'] = [piece.corpus_name] * length
+        dfs.append(modulation_df)
+
+    all_modulation_df = pd.concat(dfs)
+    return all_modulation_df
+
+
+def get_modulation_steps_with_transition_types_data(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
+    """Transform data into [interval, type, year] dataframe. Dataframe['interval] = ['m3, M3, p4]"""
 
     def get_corpuswise_modulation_df(annotated_piece_list):
         corpus_modulation_list = []
         for idx, piece in enumerate(annotated_piece_list):
             piece_modulation_bigrams_RN = piece.get_modulation_bigrams_with_globalkey()
-            piece_modulation_df = piecewise_modulation_df_prototype(piece, piece_modulation_bigrams_RN)
+            piece_modulation_df = piecewise_modulation_data_with_transition_types_df(piece, piece_modulation_bigrams_RN)
             corpus_modulation_list.append(piece_modulation_df)
         corpus_modulation_df = pd.concat(corpus_modulation_list)
         return corpus_modulation_df
@@ -83,7 +81,7 @@ def get_modulation_steps_displot_data(data_source: Union[MetaCorpraInfo, CorpusI
 
     if isinstance(data_source, PieceInfo):
         modulations_bigrams_RN = data_source.get_modulation_bigrams_with_globalkey()
-        modulation_df = piecewise_modulation_df_prototype(data_source, modulations_bigrams_RN)
+        modulation_df = piecewise_modulation_data_with_transition_types_df(data_source, modulations_bigrams_RN)
         return modulation_df
 
     elif isinstance(data_source, CorpusInfo):
@@ -91,25 +89,28 @@ def get_modulation_steps_displot_data(data_source: Union[MetaCorpraInfo, CorpusI
         modulation_df = get_corpuswise_modulation_df(annotated_piece_list)
         return modulation_df
 
-
     elif isinstance(data_source, MetaCorpraInfo):
         annotated_corpus_list = data_source.annotated_corpus_list
         modulation_df = get_metacorpora_modulation_df(annotated_corpus_list)
         return modulation_df
 
-def piecewise_modulation_heatmap_df_prototype(piece: PieceInfo):
-    result = get_modulation_steps_displot_data(piece)
-    heatmap_df = result['interval'].value_counts().reset_index().rename(
-        columns={'index': 'interval', 'interval': 'count'})
-    heatmap_df['year'] = [piece.composed_year] * heatmap_df.shape[0]
-    return heatmap_df
 
-def get_modulation_heatmap_data(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
+def piecewise_modulation_steps_data_df(this_piece: PieceInfo):
+    interval_df = get_modulation_steps_with_transition_types_data(this_piece)
+    modulation_data_df = interval_df['interval'].value_counts().reset_index().rename(
+        columns={'index': 'interval', 'interval': 'count'})
+    modulation_data_df['year'] = [this_piece.composed_year] * modulation_data_df.shape[0]
+    modulation_data_df['era'] = [determine_era_based_on_year(this_piece.composed_year)] * modulation_data_df.shape[0]
+    return modulation_data_df
+
+
+def get_modulation_steps_data(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
+    """Transform data into a dataframe with columns: [interval, count, year, era]"""
 
     def get_corpuswise_heatmap_data(annotated_piece_list):
         corpus_heatmap_data_list = []
         for idx, piece in enumerate(annotated_piece_list):
-            piece_heatmap_data = piecewise_modulation_heatmap_df_prototype(piece)
+            piece_heatmap_data = piecewise_modulation_steps_data_df(piece)
             corpus_heatmap_data_list.append(piece_heatmap_data)
         corpus_modulation_df = pd.concat(corpus_heatmap_data_list)
         return corpus_modulation_df
@@ -123,7 +124,7 @@ def get_modulation_heatmap_data(data_source: Union[MetaCorpraInfo, CorpusInfo, P
         return metacorpora_heatmap_data
 
     if isinstance(data_source, PieceInfo):
-        heatmap_df = piecewise_modulation_heatmap_df_prototype(data_source)
+        heatmap_df = piecewise_modulation_steps_data_df(data_source)
         return heatmap_df
 
     elif isinstance(data_source, CorpusInfo):
@@ -136,15 +137,14 @@ def get_modulation_heatmap_data(data_source: Union[MetaCorpraInfo, CorpusInfo, P
         heatmap_data = get_metacorpora_heatmap_data(annotated_corpus_list)
         return heatmap_data
 
+
 if __name__ == '__main__':
     metacorpora_path = 'petit_dcml_corpus/'
     corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
-    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
-    corpus = CorpusInfo(corpus_path)
+    # piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
+    # corpus = CorpusInfo(corpus_path)
     metacorpora = MetaCorpraInfo(metacorpora_path)
     # result = get_modulation_steps_displot_data(metacorpora)
 
-    result = get_modulation_heatmap_data(data_source=metacorpora)
+    result = get_modulation_steps_with_transition_types_data(data_source=metacorpora)
 
-    sns.jointplot(data=result, x='year', y='interval', kind='hex')
-    plt.show()

@@ -1,11 +1,15 @@
-from typing import Union, Literal, List
+# Created by Xinyi Guan in 2022.
 
+from loader import PieceInfo, CorpusInfo, MetaCorpraInfo
+from typing import List, Literal, Union
 import numpy as np
 import pandas as pd
 from scipy.stats import entropy
 
-from loader import PieceInfo, CorpusInfo, MetaCorpraInfo
 
+# ===================================
+# compute                           |
+# ===================================
 
 def dataframe_extension(source_df: pd.DataFrame,
                         extended_unique_kw_list: List[str],
@@ -57,10 +61,10 @@ def compute_prob(obj: Union[PieceInfo, CorpusInfo, MetaCorpraInfo],
             return extended_probs
 
         elif keyword_normalization == 'within_metacorpora':
-            if metacorpora_path is None:
+            if meta_corpora_path is None:
                 raise AssertionError(f'{meta_corpora_path} Missing required input')
             else:
-                metacorpora = MetaCorpraInfo(meta_corpora_path=metacorpora_path)
+                metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
                 meta_unique_key_vals = metacorpora.get_corpora_unique_key_values(aspect=aspect, key=key)
                 meta_extended_probs = dataframe_extension(source_df=probs, extended_unique_kw_list=meta_unique_key_vals,
                                                           fillNaN=True)
@@ -78,10 +82,10 @@ def compute_prob(obj: Union[PieceInfo, CorpusInfo, MetaCorpraInfo],
         if keyword_normalization == 'within_corpus':
             return extended_probs
         elif keyword_normalization == 'within_metacorpora':
-            if metacorpora_path is None:
+            if meta_corpora_path is None:
                 raise AssertionError(f'{meta_corpora_path} Missing required input')
             else:
-                metacorpora = MetaCorpraInfo(meta_corpora_path=metacorpora_path)
+                metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
                 meta_unique_key_vals = metacorpora.get_corpora_unique_key_values(aspect=aspect, key=key)
                 meta_extended_probs = dataframe_extension(source_df=extended_probs,
                                                           extended_unique_kw_list=meta_unique_key_vals, fillNaN=True)
@@ -110,15 +114,3 @@ def compute_information_content(probability: pd.DataFrame) -> pd.DataFrame:
 def compute_entropy(probability: pd.DataFrame, base: int = 2) -> float:
     H = entropy(probability, base=base)
     return H
-
-
-
-
-
-if __name__ == '__main__':
-    metacorpora_path = 'romantic_piano_corpus/'
-    corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
-
-    metacorpora = MetaCorpraInfo(metacorpora_path)
-    corpus = CorpusInfo(corpus_path)
-    piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
