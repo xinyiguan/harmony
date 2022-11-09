@@ -8,7 +8,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 # Define the meta-corpus to work with
-metacorpora_path = 'modified_dcml_corpora/'
+metacorpora_path = 'petit_dcml_corpus/'
 metacorpora = MetaCorpraInfo(metacorpora_path)
 
 
@@ -126,3 +126,4 @@ if __name__ == '__main__':
     facetgrid_modulation_steps_by_era()
     facetgrid_modulation_steps_with_modes_by_era()
 
+# TODO: NEED TO FILTER THE PIECES FIRST! MUST HAVE GLOBALKEY INFO
