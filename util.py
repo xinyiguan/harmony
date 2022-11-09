@@ -1,7 +1,7 @@
 # Created by Xinyi Guan in 2022.
 
 from typing import List, Literal, Union
-import pitchtypes
+import pitchtypes, re
 import numpy as np
 import pandas as pd
 from scipy.stats import entropy
@@ -50,17 +50,17 @@ MINOR_NUMERALS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii',
                   '#i', '#ii', '#iii', '#iv', '#v', '#vi', '#vii',
                   'bi', 'bii', 'biii', 'biv', 'bv', 'bvi', 'bvii']
 
-MAJOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS = {'C': 'I',
-                                              'C#': '#I',
-                                              'Cb': 'bI',
+MAJOR_MODE_RN_TO_SP = {'C': 'I',
+                       'C#': '#I',
+                       'Cb': 'bI',
 
-                                              'D': 'II',
-                                              'D#': '#II',
-                                              'Db': 'bII',
+                       'D': 'II',
+                       'D#': '#II',
+                       'Db': 'bII',
 
-                                              'E': 'III',
-                                              'E#': '#III',
-                                              'Eb': 'bIII',
+                       'E': 'III',
+                       'E#': '#III',
+                       'Eb': 'bIII',
 
                                               'F': 'IV',
                                               'F#': '#IV',
@@ -71,24 +71,24 @@ MAJOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS = {'C': 'I',
                                               'Gb': 'bV',
 
                                               'A': 'VI',
-                                              'A#': '#VI',
-                                              'Ab': 'bVI',
+                       'A#': '#VI',
+                       'Ab': 'bVI',
 
-                                              'B': 'VII',
-                                              'B#': '#VII',
-                                              'Bb': 'bVII'}
+                       'B': 'VII',
+                       'B#': '#VII',
+                       'Bb': 'bVII'}
 
-MINOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS = {'C': 'i',
-                                              'C#': '#i',
-                                              'Cb': 'bi',
+MINOR_MODE_RN_TO_SP = {'C': 'i',
+                       'C#': '#i',
+                       'Cb': 'bi',
 
-                                              'D': 'ii',
-                                              'D#': '#ii',
-                                              'Db': 'bii',
+                       'D': 'ii',
+                       'D#': '#ii',
+                       'Db': 'bii',
 
-                                              'E': 'iii',
-                                              'E#': '#iii',
-                                              'Eb': 'biii',
+                       'E': 'iii',
+                       'E#': '#iii',
+                       'Eb': 'biii',
 
                                               'F': 'iv',
                                               'F#': '#iv',
@@ -96,116 +96,76 @@ MINOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS = {'C': 'i',
 
                                               'G': 'v',
                                               'G#': '#v',
-                                              'Gb': 'bv',
+                       'Gb': 'bv',
 
-                                              'A': 'vi',
-                                              'A#': '#vi',
-                                              'Ab': 'bvi',
+                       'A': 'vi',
+                       'A#': '#vi',
+                       'Ab': 'bvi',
 
-                                              'B': 'vii',
-                                              'B#': '#vii',
-                                              'Bb': 'bvii'}
+                       'B': 'vii',
+                       'B#': '#vii',
+                       'Bb': 'bvii'}
 
 
-def partition_modualtion_bigrams_by_types(modulation_bigrams_list: List[str],
-                                          partition_types: Literal['MM', 'Mm', 'mM', 'mm']) -> List[str]:
+# parsing a Roman Numeral symbol
+class RomanNumeral:
+    def __init__(self, roman_numeral: str):
+        self.the_string = roman_numeral
+        self.quality = self._determine_quality()
+        self.accidental = self._determine_accidental()
+
+    def _determine_quality(self) -> Literal['M', 'm']:
+        "Given a roman numeral (e.g., '#II'), determine its quality as 'M'"
+        # use re
+
+    def _determine_accidental(self) -> Literal['#', 'b']:
+        pass
+
+
+def determine_modulation_bigram_type(modulation_bigram: str) -> Literal['MM', 'Mm', 'mM', 'mm']:
+    preceding, following = modulation_bigram.split('_')[1:]
+    preceding_numeral = RomanNumeral(preceding)
+    following_numeral = RomanNumeral(following)
+    bigram_type = preceding_numeral.quality + following_numeral.quality
+    return bigram_type
+
+
+def filter_modulation_bigrams_by_types(modulation_bigrams_list: List[str],
+                                       modulation_type: Literal['MM', 'Mm', 'mM', 'mm']) -> List[str]:
     """
-    Partition the list of local_bigrams (e.g. 'F_I_iii') into a sub-list according to the partition type
+    Filter the list of local_bigrams (e.g. 'F_I_iii') into a sub-list according to the partition type
     :param modulation_bigrams_list:
     :param partition_types:
     :return:
     """
-
-    if partition_types == 'MM':
-        MM = []
-        for idx, val in enumerate(modulation_bigrams_list):
-            preceding = val.split('_')[1]
-            following = val.split('_')[2]
-            if (preceding in MAJOR_NUMERALS) and (following in MAJOR_NUMERALS):
-                MM.append(val)
-        return MM
-
-    elif partition_types == 'Mm':
-        Mm = []
-        for idx, val in enumerate(modulation_bigrams_list):
-            preceding = val.split('_')[1]
-            following = val.split('_')[2]
-            if (preceding in MAJOR_NUMERALS) and (following in MINOR_NUMERALS):
-                Mm.append(val)
-        return Mm
-
-    elif partition_types == 'mM':
-        mM = []
-        for idx, val in enumerate(modulation_bigrams_list):
-            preceding = val.split('_')[1]
-            following = val.split('_')[2]
-            if (preceding in MINOR_NUMERALS) and (following in MAJOR_NUMERALS):
-                mM.append(val)
-        return mM
-
-    elif partition_types == 'mm':
-        mm = []
-        for idx, val in enumerate(modulation_bigrams_list):
-            preceding = val.split('_')[1]
-            following = val.split('_')[2]
-            if (preceding in MINOR_NUMERALS) and (following in MINOR_NUMERALS):
-                mm.append(val)
-        return mm
+    filtered_bigrams = [bigram for bigram in modulation_bigrams_list if
+                        determine_modulation_bigram_type(bigram) == modulation_type]
+    return filtered_bigrams
 
 
-def compute_modulation_steps(partitioned_bigrams_list: List[str],
-                             partition_type: Literal['MM', 'Mm', 'mM', 'mm'],
-                             fifths: bool = False):
+def compute_modulation_steps(bigrams_list: List[str],
+                             ):
     """
-    Compute the modulation steps between the origin key and the target key.
-    :param fifths: bool, interval on the line of fifths
-    :param partitioned_bigrams_list:
-    :param partition_type:
-    :return:
+    Transfrom the modulation bigram list (e.g., ['Db_I_#II', 'Db_#II_vi']) to scale degree list (e.g., ['Db_1_#2', ...])
+    to finally calculate the modulation step (interval between spelled pitches) using the pitchtypes library.
     """
 
-    def get_key(my_dict, val):
-        for key, value in my_dict.items():
-            if val == value:
-                return key
-
-    modulation_steps_list = []
-
-    # using the Spelled Pitch in the pitchtype library
-    mode_dict_mapping = {'M': MAJOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS,
-                         'm': MINOR_ROMAN_NUMERALS_TO_SPELLED_PITCHCLASS}
-
-    key_dict_1, key_dict_2 = (mode_dict_mapping.get(mode) for mode in partition_type)
-
-    for idx, val in enumerate(partitioned_bigrams_list):
-        preceding_RN = val.split('_')[1]
-        following_RN = val.split('_')[2]
-
-        preceding_SP = pitchtypes.SpelledPitchClass(
-            get_key(my_dict=key_dict_1, val=preceding_RN))
-        following_SP = pitchtypes.SpelledPitchClass(
-            get_key(my_dict=key_dict_2, val=following_RN))
-
-        interval = following_SP - preceding_SP
-
-        if fifths:
-            modulation_steps_in_fifths = interval.fifths()
-            modulation_steps_list.append(modulation_steps_in_fifths)
-        else:
-            modulation_steps_list.append(interval)
-    return modulation_steps_list
+    # map all lowercase RN to uppercase in the bigram_list as the RN denote the scale degree
+    capitalized_bigrams_list = []
+    for idx, item in enumerate(bigrams_list):
+        capitalized_str = item.replace('i', 'I').replace('v', 'V')
+        capitalized_bigrams_list.append(capitalized_str)
+    return capitalized_bigrams_list
 
 
 
 
 if __name__ == '__main__':
     localkey_bigrams = ['F_I_V', 'F_V_V', 'F_V_vi', 'F_vi_I', 'F_I_V', 'F_vi_i']
+    bigrams = ['Db_I_#II', 'Db_#II_vi']
 
-    MM = ['F_I_I', 'F_I_V', 'F_V_I', 'F_V_V', 'F_bIII_I', 'F_I_bIII', 'F_I_III', 'F_I_#I', 'F_I_bIII']
-    mM = ['F_vi_I', 'F_iv_I', 'F_vi_V', 'F_iv_V', 'F_iii_I']
-
-    result = compute_modulation_steps(partitioned_bigrams_list=MM, partition_type='MM')
-    result2 = compute_modulation_steps(partitioned_bigrams_list=MM, partition_type='MM', fifths=True)
+    result = compute_modulation_steps(bigrams)
+    # result2 = compute_modulation_steps(localkey_bigrams)
 
     print(result)
-    print(result2)
+    # print(result2)

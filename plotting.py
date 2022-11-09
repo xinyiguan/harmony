@@ -24,6 +24,10 @@ def transition_prob_heatmap(transition_prob: pd.DataFrame) -> plt.Figure:
     return fig
 
 
+# ERA_ORDER = {'Renaissance': 0, 'Baroque': 1, 'Classical': 2, 'Early Rom.': 3, 'Late Rom.': 4}
+ERA_ORDER = ['Renaissance', 'Baroque', 'Classical', 'Early Rom.', 'Late Rom.']
+
+
 def determine_era_based_on_year(year) -> str:
     if 0 < year < 1650:
         return 'Renaissance'
@@ -38,14 +42,14 @@ def determine_era_based_on_year(year) -> str:
         return 'Early Rom.'
 
     elif 1856 < year < 1931:
-        return 'Late Rom'
+        return 'Late Rom.'
 
 
 def piecewise_modulation_data_with_transition_types_df(piece: PieceInfo, modulations_bigrams_RN: List):
     """Get the dataframe containing modulation-relevant [interval, type, year, era, corpus] of a piece"""
     dfs = []
     for partition_type in ['MM', 'Mm', 'mM', 'mm']:
-        bigrams = util.partition_modualtion_bigrams_by_types(modulations_bigrams_RN, partition_types=partition_type)
+        bigrams = util.filter_modualtion_bigrams_by_types(modulations_bigrams_RN, partition_types=partition_type)
         steps = util.compute_modulation_steps(bigrams, partition_type=partition_type, fifths=True)
         modulation_df = pd.DataFrame(steps, columns=['interval'])
         length = modulation_df.shape[0]
@@ -60,7 +64,7 @@ def piecewise_modulation_data_with_transition_types_df(piece: PieceInfo, modulat
 
 
 def get_modulation_steps_with_transition_types_data(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
-    """Transform data into [interval, type, year] dataframe. Dataframe['interval] = ['m3, M3, p4]"""
+    """Transform data into [interval, type, year, era, corpus] dataframe. Dataframe['interval] = ['m3, M3, p4]"""
 
     def get_corpuswise_modulation_df(annotated_piece_list):
         corpus_modulation_list = []
@@ -99,7 +103,7 @@ def piecewise_modulation_steps_data_df(this_piece: PieceInfo):
     interval_df = get_modulation_steps_with_transition_types_data(this_piece)
     modulation_data_df = interval_df['interval'].value_counts().reset_index().rename(
         columns={'index': 'interval', 'interval': 'count'})
-    length = modulation_data_df.shape[0].shape[0]
+    length = modulation_data_df.shape[0]
     modulation_data_df['year'] = [this_piece.composed_year] * length
     modulation_data_df['era'] = [determine_era_based_on_year(this_piece.composed_year)] * length
     modulation_data_df['corpus'] = [this_piece.corpus_name] * length
@@ -109,7 +113,7 @@ def piecewise_modulation_steps_data_df(this_piece: PieceInfo):
 def get_modulation_steps_data(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
     """Transform data into a dataframe with columns: [interval, count, year, era]"""
 
-    def get_corpuswise_heatmap_data(annotated_piece_list):
+    def get_corpuswise_modulation_steps_data(annotated_piece_list):
         corpus_heatmap_data_list = []
         for idx, piece in enumerate(annotated_piece_list):
             piece_heatmap_data = piecewise_modulation_steps_data_df(piece)
@@ -117,10 +121,10 @@ def get_modulation_steps_data(data_source: Union[MetaCorpraInfo, CorpusInfo, Pie
         corpus_modulation_df = pd.concat(corpus_heatmap_data_list)
         return corpus_modulation_df
 
-    def get_metacorpora_heatmap_data(annotated_corpus_list):
+    def get_metacorpora_modulation_steps_data(annotated_corpus_list):
         metacorpora_heatmap_data_list = []
         for idx, corpus in enumerate(annotated_corpus_list):
-            corpus_heatmap_data = get_corpuswise_heatmap_data(corpus.annotated_piece_list)
+            corpus_heatmap_data = get_corpuswise_modulation_steps_data(corpus.annotated_piece_list)
             metacorpora_heatmap_data_list.append(corpus_heatmap_data)
         metacorpora_heatmap_data = pd.concat(metacorpora_heatmap_data_list)
         return metacorpora_heatmap_data
@@ -131,26 +135,40 @@ def get_modulation_steps_data(data_source: Union[MetaCorpraInfo, CorpusInfo, Pie
 
     elif isinstance(data_source, CorpusInfo):
         annotated_piece_list = data_source.annotated_piece_list
-        heatmap_data = get_corpuswise_heatmap_data(annotated_piece_list)
+        heatmap_data = get_corpuswise_modulation_steps_data(annotated_piece_list)
         return heatmap_data
 
     elif isinstance(data_source, MetaCorpraInfo):
         annotated_corpus_list = data_source.annotated_corpus_list
-        heatmap_data = get_metacorpora_heatmap_data(annotated_corpus_list)
+        heatmap_data = get_metacorpora_modulation_steps_data(annotated_corpus_list)
         return heatmap_data
 
 
-def plot_chronological_modulation_steps_facetgrid(data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]):
-    df = get_modulation_steps_data(data_source=data_source)
+def plot_chronological_modulation_steps_facetgrid(data_source: MetaCorpraInfo):
+    df = get_modulation_steps_with_transition_types_data(data_source=data_source)
 
     # Initialize a grid of plots with an Axes for each walk
-    grid = sns.FacetGrid(df, col="era", hue="era", palette="tab20c", height=1.5)
+    grid = sns.FacetGrid(df, col="type", row='era', height=4,
+                         margin_titles=True,
+                         col_order=['MM', 'Mm', 'mM', 'mm'],
+                         row_order=['Baroque', 'Classical', 'Early Rom.', 'Late Rom.'])
 
-    # https://seaborn.pydata.org/examples/many_facets.html
+    # Draw a bar plot to show the count of modulation steps
+    grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
+                       multiple='stack', hue='corpus', palette='YlGnBu',
+                       discrete=True)
 
+    # Set name
+    grid.set_axis_labels(x_var='Modulation step (intervals on the line of fifths)', y_var='Count')
 
+    # To show the bottom label (interval) in every facet
+    for axis in grid.axes.flat:
+        axis.tick_params(labelbottom=True)
 
-    pass
+    grid.tight_layout()
+
+    return grid
+
 
 if __name__ == '__main__':
     metacorpora_path = 'petit_dcml_corpus/'
@@ -160,7 +178,7 @@ if __name__ == '__main__':
     metacorpora = MetaCorpraInfo(metacorpora_path)
     # result = get_modulation_steps_displot_data(metacorpora)
 
-    result = get_modulation_steps_with_transition_types_data(data_source=metacorpora)
+    # result = get_modulation_steps_with_transition_types_data(metacorpora)
+    # print(result)
 
-    sns.jointplot(data=result, x='era', y='interval', kind='hist', bins=50)
-    plt.show()
+    plot_chronological_modulation_steps_facetgrid(metacorpora)
