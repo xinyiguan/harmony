@@ -48,12 +48,12 @@ def determine_era_based_on_year(year) -> str:
 def piecewise_modulation_data_with_transition_types_df(piece: PieceInfo, modulations_bigrams_RN: List):
     """Get the dataframe containing modulation-relevant [interval, type, year, era, corpus] of a piece"""
     dfs = []
-    for partition_type in ['MM', 'Mm', 'mM', 'mm']:
-        bigrams = util.filter_modualtion_bigrams_by_types(modulations_bigrams_RN, partition_types=partition_type)
-        steps = util.compute_modulation_steps(bigrams, partition_type=partition_type, fifths=True)
+    for modulation_type in ['MM', 'Mm', 'mM', 'mm']:
+        bigrams = util.filter_modulation_bigrams_by_types(modulation_bigrams_list=modulations_bigrams_RN, modulation_type=modulation_type)
+        steps = util.compute_modulation_steps(bigrams, fifths=True)
         modulation_df = pd.DataFrame(steps, columns=['interval'])
         length = modulation_df.shape[0]
-        modulation_df['type'] = [partition_type] * length
+        modulation_df['type'] = [modulation_type] * length
         modulation_df['year'] = [piece.composed_year] * length
         modulation_df['era'] = [determine_era_based_on_year(piece.composed_year)] * length
         modulation_df['corpus'] = [piece.corpus_name] * length
@@ -171,14 +171,14 @@ def plot_chronological_modulation_steps_facetgrid(data_source: MetaCorpraInfo):
 
 
 if __name__ == '__main__':
-    metacorpora_path = 'petit_dcml_corpus/'
+    metacorpora_path = 'modified_dcml_corpora/'
     corpus_path = 'romantic_piano_corpus/debussy_suite_bergamasque/'
     # piece = PieceInfo(parent_corpus_path=corpus_path, piece_name='l075-01_suite_prelude')
-    # corpus = CorpusInfo(corpus_path)
-    metacorpora = MetaCorpraInfo(metacorpora_path)
+    corpus = CorpusInfo(corpus_path)
+    # metacorpora = MetaCorpraInfo(metacorpora_path)
     # result = get_modulation_steps_displot_data(metacorpora)
 
     # result = get_modulation_steps_with_transition_types_data(metacorpora)
     # print(result)
 
-    plot_chronological_modulation_steps_facetgrid(metacorpora)
+    plot_chronological_modulation_steps_facetgrid(corpus)
