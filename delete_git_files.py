@@ -15,14 +15,22 @@ def delete_files():
             shutil.rmtree(corpus_path+'.github/')
         except:
             print('No such file/folder.')
-            # remove .git/
+
+        # remove .git/
         try:
             shutil.rmtree(corpus_path+'.git/')
         except:
             print('No such file/folder.')
-            # remove .git
+
+        # remove .git
         try:
             shutil.rmtree(corpus_path+'.git')
+        except:
+            print('No such file/folder.')
+
+        # remove .gitignore
+        try:
+            shutil.rmtree(corpus_path + '.gitignore')
         except:
             print('No such file/folder.')
 
