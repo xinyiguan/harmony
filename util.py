@@ -1,5 +1,5 @@
 # Created by Xinyi Guan in 2022.
-
+from dataclasses import dataclass
 from typing import List, Literal, Union
 import pitchtypes, re
 import numpy as np
@@ -44,23 +44,24 @@ def get_transition_matrix(n_grams: np.ndarray) -> pd.DataFrame:
 
 # parsing a Roman Numeral symbol
 class RomanNumeral:
-    # TODO: NEED TO CHANGE ENCODING TO INCORPORATE GOLBALKEY INFO SO TAHT THIS IS WELL-DEFINED.
     # instances: 'II', 'bIII', 'bbbIV', '#II/VI'
     def __init__(self, roman_numeral: str):
         self.the_string = roman_numeral
         self.MAJOR_NUMERALS = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII']
         self.MINOR_NUMERALS = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii']
-        self.ARABIC_NUMERALS_DICT = {'I': '1', 'II': '2', 'III': '3', 'IV': '4', 'V': '5', 'VI': '6', 'VII': '7',
-                                     'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6', 'vii': '7'}
-        self.Accidental_RN = self._split_accidental_RN()
-        self.quality = self._determine_quality()
-        self.accidental = self._determine_accidental()
-        # self.arabic_numeral = self._transform_to_arabic_numeral()
-        # self.Accidental_AN = self._join_accidental_AN()
+        self.Simple_ARABIC_NUMERAL_DICT = {'I': '1', 'II': '2', 'III': '3', 'IV': '4', 'V': '5', 'VI': '6', 'VII': '7',
+                                           'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6', 'vii': '7'}
+
+        self.Secondary_ROMAN2ARABIC_NUMERALS_DICT = {'I': '0', 'II': '1', 'III': '2', 'IV': '3', 'V': '4', 'VI': '5',
+                                                     'VII': '6',
+                                                     'i': '0', 'ii': '1', 'iii': '2', 'iv': '3', 'v': '4', 'vi': '5',
+                                                     'vii': '6'}
+
+        self.Secondary_ARABIC_NUMERAL_DICT = {0: '1', 1: '2', 2: '3', 3: '4', 4: '5', 5: '6', 6: '7'}
 
     def _split_accidental_RN(self):
         """Transform a RN str (with/without) accidental ('##II', 'II')
-        to a list of two elements (e.g., ['##', 'II'] or ['', 'II]')"""
+        to a list of two elements (e.g., ['##', 'II'] or ['', 'II]') """
 
         accidental_count_is_1 = any([self.the_string.count('#') == 1, self.the_string.count('b') == 1])
         accidental_count_more = any([self.the_string.count('#') > 1, self.the_string.count('b') > 1])
@@ -74,7 +75,7 @@ class RomanNumeral:
 
         elif accidental_count_more:
             accidental_part = ''.join(seperated_str[0:-1])
-            seperated_rn = [accidental_part,seperated_str[-1]]
+            seperated_rn = [accidental_part, seperated_str[-1]]
             return seperated_rn
 
         elif accidental_count_is_0:
@@ -82,11 +83,11 @@ class RomanNumeral:
             seperated_str.insert(0, '')
             return seperated_str
 
-    def _determine_quality(self) -> Literal['M', 'm']:
-        """Given a split_accidental_RN (e.g., ['bb', 'III']), determine its quality (e.g., as 'M')"""
+    def determine_quality(self) -> Literal['M', 'm']:
+        """Given a split_accidental_RN (e.g., ['bb', 'III']), determine its quality (e.g., as 'M')
+        Some edgecase like 'III/#VI'"""
 
         the_rn = self._split_accidental_RN()[1]
-
         if any((c in self.MAJOR_NUMERALS) for c in the_rn):
             return 'M'
         elif any((c in self.MINOR_NUMERALS) for c in the_rn):
@@ -94,7 +95,7 @@ class RomanNumeral:
         else:
             raise ValueError(f'Unexpected mode quality.')
 
-    def _determine_accidental(self):
+    def determine_accidental(self):
         """Given a roman numeral str (e.g., '#II'), determine its accidental (e.g., as '#')"""
         the_accidental = self._split_accidental_RN()[0]
 
@@ -105,35 +106,104 @@ class RomanNumeral:
         else:
             return the_accidental
 
-    def _transform_to_arabic_numeral(self):
-        """Given a roman numeral str (e.g., '#II'), determine its arabic numeral part (e.g., as '2')
-        Some edgecase like 'bIII/VI', 'V/V/V'
+    @staticmethod
+    def _drop_accidentals(my_string):
+        roman_numeral_part = my_string.replace('#', '').replace('b', '')
+        return roman_numeral_part
+
+    def transform_to_arabic_numeral(self):
+        """Given a roman numeral str (e.g., '#II'), determine its arabic numeral part (e.g., as '#2')
+        Some edgecase like 'bIII/VI' -> '', 'V/V/V'
         """
-        roman_numeral_part = self._split_accidental_RN()[1]
+        roman_numeral_part = self._drop_accidentals(self.the_string)
+
+        # account for secondary chord
         if '/' in roman_numeral_part:
             seperated_rn = roman_numeral_part.split('/')
-            for idx, rn in enumerate(seperated_rn):
-                abs_arabic_numeral = self.ARABIC_NUMERALS_DICT[rn]
-                print(abs_arabic_numeral)
-                # TODO: current version cannot account for cases like 'V/V/V'
-            return 'great'
+            abs_arabic_numeral = sum(int(self.Secondary_ROMAN2ARABIC_NUMERALS_DICT[rn]) for rn in seperated_rn)
+            intermediate_roman_arabic_numeral = (abs_arabic_numeral % 7)
+            arabic_numeral = self.the_string.replace(roman_numeral_part, self.Secondary_ARABIC_NUMERAL_DICT[
+                intermediate_roman_arabic_numeral])
+            return arabic_numeral
         else:
-            arabic_numeral = self.ARABIC_NUMERALS_DICT[roman_numeral_part]
+            arabic_numeral = self.the_string.replace(roman_numeral_part,
+                                                     self.Simple_ARABIC_NUMERAL_DICT[roman_numeral_part])
             return arabic_numeral
 
-    def _join_accidental_AN(self):
+    def join_accidental_AN(self):
         """Transform a roman numeral str with accidental (e.g. 'bvi') to arabic numeral with accidental(e.g.'b6')."""
-        AN = self.arabic_numeral
+        AN = str(self.transform_to_arabic_numeral())
         accidental = self._split_accidental_RN()[0]
         Accidental_AN = ''.join([accidental, AN])
         return Accidental_AN
 
 
+@dataclass
+class ModulaitonBigram:
+    # instances: 'C_bIII/V_ii/bIII/V'
+    modulation_bigram: str
+
+    def __post_init__(self):
+        self.globalkey = self.modulation_bigram.split('_')[0]
+        self.preceding_key = self.modulation_bigram.split('_')[1]
+        self.following_key = self.modulation_bigram.split('_')[2]
+        self.Simple_ARABIC_NUMERAL_DICT = {'I': '1', 'II': '2', 'III': '3', 'IV': '4', 'V': '5', 'VI': '6', 'VII': '7',
+                                           'i': '1', 'ii': '2', 'iii': '3', 'iv': '4', 'v': '5', 'vi': '6', 'vii': '7'}
+        self.scales_dict = self.read_scales_txt()
+
+    @staticmethod
+    def read_scales_txt():
+        """read the scale.txt file """
+        with open("scales.txt") as f:
+            scales_dict = {str(key): value for line in f for (key, value) in [line.strip().split(':')]}
+            for key, val in scales_dict.items():
+                val = scales_dict[key]
+                val_in_list = val.split(',')
+                scales_dict[key] = val_in_list
+
+        return scales_dict
+
+    def _get_single_secondary_chord_pc(self, global_key, secondary_chord):
+        """Transfrom secondary chord 'bIII/V' in C to its absolute spelled pc, e.g., Bb"""
+        seperated_items = secondary_chord.split('/')
+        preceding = seperated_items[0]
+        following = seperated_items[1]
+
+        preceding_numeral = preceding.replace('#', '').replace('b', '')
+        following_numeral = following.replace('#', '').replace('b', '')
+
+        preceding_idx_in_scale = int(self.Simple_ARABIC_NUMERAL_DICT[preceding_numeral]) - 1
+        following_idx_in_scale = int(self.Simple_ARABIC_NUMERAL_DICT[following_numeral]) - 1
+
+        localkey_abs_pc = following.replace(following_numeral, self.scales_dict[global_key][preceding_idx_in_scale])
+        func_abs_pc = preceding.replace(preceding_numeral, self.scales_dict[localkey_abs_pc][following_idx_in_scale])
+        return func_abs_pc
+
+    def get_preceding_abs_pc(self):
+        # account for secondary chord, all relative to CMajor or a minor
+        if '/' in self.preceding_key:
+            seperated_items = self.preceding_key.split('/')
+            preceding_abs_pc=[]
+
+            return preceding_abs_pc
+
+
 def determine_modulation_bigram_type(modulation_bigram: str) -> Literal['MM', 'Mm', 'mM', 'mm']:
     preceding, following = modulation_bigram.split('_')[1:]
-    preceding_numeral = RomanNumeral(preceding)
-    following_numeral = RomanNumeral(following)
-    bigram_type = preceding_numeral.quality + following_numeral.quality
+
+    # check if it's a secondary chord.
+    if '/' in preceding:
+        active_preceding = preceding.split('/')[0]
+        preceding_numeral = RomanNumeral(active_preceding)
+    else:
+        preceding_numeral = RomanNumeral(preceding)
+
+    if '/' in following:
+        active_following = following.split('/')[0]
+        following_numeral = RomanNumeral(active_following)
+    else:
+        following_numeral = RomanNumeral(following)
+    bigram_type = preceding_numeral.determine_quality() + following_numeral.determine_quality()
     return bigram_type
 
 
@@ -146,19 +216,21 @@ def filter_modulation_bigrams_by_types(modulation_bigrams_list: List[str],
 
 
 def compute_bigram_modulation_steps(bigram: str, fifths: bool = False):
-    """Transform a bigram (e.g.'Db_I_#II') to a interval to scale degree (e.g.'Db_1_#2') and to
+    """Transform a bigram (e.g.'Db_I_#II') to an interval to scale degree (e.g.'Db_1_#2') and to
     finally calculate the modulation step (e.g.'a2'), if fifths is true, return (e.g. '')"""
 
-    # roman numeral unit --> arabic numeral unit
+    # roman numeral unit (#I, I)--> arabic numeral unit (#1, 1)
     globalkey = bigram.split('_')[0]
     preceding, following = bigram.split('_')[1:]
-    preceding_numeral = RomanNumeral(preceding)
-    following_numeral = RomanNumeral(following)
+    preceding_numeral_part = RomanNumeral(preceding)
+    following_numeral_part = RomanNumeral(following)
+    print('preceding, following: ', preceding, following)
 
-    preceding_numeral_arabic = preceding_numeral.Accidental_AN
-    following_numeral_arabic = following_numeral.Accidental_AN
+    preceding_numeral_arabic = preceding_numeral_part.transform_to_arabic_numeral()
+    following_numeral_arabic = following_numeral_part.transform_to_arabic_numeral()
 
     arabic_numeral_unit = '_'.join([globalkey, preceding_numeral_arabic, following_numeral_arabic])
+    print('arabic_numeral_unit: ', arabic_numeral_unit)
 
     # encode scale degree (arabic numeral) to spelled pitch (transposed to C) with ref to globalkey
     MAJOR_SCALE_DEGREE_DICT = {'1': 'C', '2': 'D', '3': 'E', '4': 'F', '5': 'G', '6': 'A', '7': 'B',
@@ -172,6 +244,7 @@ def compute_bigram_modulation_steps(bigram: str, fifths: bool = False):
     key = arabic_numeral_unit.split('_')[0][0]  # take the 'D' in 'Db'
     mode = 'M' if key.isupper() else 'm'
     preceding_sd, following_sd = arabic_numeral_unit.split('_')[1:]
+    print(preceding_sd, following_sd)
 
     if mode == 'M':
         preceding_SP = pitchtypes.SpelledPitchClass(MAJOR_SCALE_DEGREE_DICT[preceding_sd])
@@ -200,18 +273,11 @@ def compute_modulation_steps(bigrams_list: List[str], fifths: bool = True):
 
 if __name__ == '__main__':
     localkey_bigrams = ['F_I_V', 'F_V_V', 'F_V_vi', 'F_vi_I', 'F_I_V', 'F_vi_i']
-    bigrams = ['Db_I_#II', 'Db_#II_vi', 'f#_i_bIII', 'f#_bIII_i']
+    bigrams = ['Db_I_#II', 'Db_#II_vi', 'f#_i_bIII', 'f#_bIII/V_ii/V']
 
-    # rn = 'bVI'
-    # print(RomanNumeral(rn).Accidental_AN)
+    bigram = 'Ab_bIII/V_vi/V'
 
-    # bigram = 'f#_i_bbIII'
-    # double_flat_rn = 'f#_i_bbIII'
-    # double_mod_rn = 'a_VI_bIII/VI'
+    # symbol = 'bIII/V'
+    result = ModulaitonBigram(bigram).get_preceding_abs_pc()
 
-    split_acc_rn_test = 'V/V/V'
-    split_acc_rn_test = 'bbbIII'
-
-    result = RomanNumeral(split_acc_rn_test)._transform_to_arabic_numeral()
     print(result)
-
