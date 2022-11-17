@@ -223,14 +223,25 @@ class ModulationSteps:
 
 
 if __name__ == '__main__':
-    metacorpora_path = 'romantic_piano_corpus/'
+    metacorpora_path = 'dcml_corpora/'
 
     metacorpora = MetaCorpraInfo(metacorpora_path)
 
     m = ModulationSteps(metacorpora)
 
-    df = m.get_modulation_steps_with_transition_types_data(data_source=metacorpora)
-    filtered = df.loc[(df['interval'] == 0) & (df['type'] =='MM')]
-    result = filtered['bigram'].tolist()
+    modulation_df_list = []
+    for idx, val in enumerate(metacorpora.corpus_name_list):
+        corpus = CorpusInfo(corpus_path=metacorpora_path+ val + '/')
+        corpus_modulation_df = m.get_corpuswise_modulation_data_df(corpus)
+        modulation_df_list.append(corpus_modulation_df)
+    df = pd.concat(modulation_df_list, ignore_index=True)
+
+    filtered = df.loc[(df['num_modulations'] > 25)]
+
+    sorted = df.sort_values(by=['composed_end'])
+
+
+
+    result = print(filtered.to_markdown())
 
     print(result)

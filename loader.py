@@ -374,10 +374,36 @@ class MetaCorpraInfo:
         return transition_matrix
 
 
+    def get_corpus_list_in_chronological_order(self):
+        corpus_year_df_list = []
+
+        for corpus in self.corpus_list:
+            mean_year = corpus.metadata_df['composed_end'].mean()
+            mean_year = int(mean_year)
+            corpuswise_corpus_year_df = pd.DataFrame([[corpus.corpus_name, mean_year]], columns=['corpus', 'year'])
+            corpus_year_df_list.append(corpuswise_corpus_year_df)
+        corpus_year_df = pd.concat(corpus_year_df_list)
+        sorted_df = corpus_year_df.sort_values(by=['year'], ascending=True)
+        corpus_list_in_chronological_order = sorted_df['corpus'].to_list()
+
+        return corpus_list_in_chronological_order
 
 
 if __name__ == '__main__':
-    meta_corpora_path = 'dcml_corpora/'
+    meta_corpora_path = 'romantic_piano_corpus/'
     metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
 
+    # corpus_year_df_list=[]
+    #
+    # for corpus in metacorpora.corpus_list:
+    #     mean_year = corpus.metadata_df['composed_end'].mean()
+    #     mean_year = int(mean_year)
+    #     corpuswise_corpus_year_df = pd.DataFrame([[corpus.corpus_name, mean_year]], columns=['corpus', 'year'])
+    #     corpus_year_df_list.append(corpuswise_corpus_year_df)
+    # corpus_year_df = pd.concat(corpus_year_df_list)
+    # sorted_df = corpus_year_df.sort_values(by=['year'], ascending=True)
+    # corpus_list_in_chronological_order = sorted_df['corpus'].to_list()
+    # print(corpus_list_in_chronological_order)
+    # print(sorted_df)
 
+    print(metacorpora.get_corpus_list_in_chronological_order())
