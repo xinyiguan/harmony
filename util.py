@@ -183,7 +183,7 @@ class ModulaitonBigram:
         # account for secondary chord, all relative to CMajor or a minor
         if '/' in self.preceding_key:
             seperated_items = self.preceding_key.split('/')
-            preceding_abs_pc=[]
+            preceding_abs_pc = []
 
             return preceding_abs_pc
 

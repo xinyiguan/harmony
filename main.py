@@ -55,9 +55,12 @@ def plot_modulation_counts_in_a_piece_replot(metacorpora) -> sns.relplot():
 
     modulation_data_df = pd.concat(modulation_df_list, ignore_index=True)
 
+    # for hue order
+    corpus_chronological_order = metacorpora.get_corpus_list_in_chronological_order()
+
     # plot the df
     g = sns.relplot(data=modulation_data_df, x='composed_end', y='num_modulations',
-                      height=8, hue='corpus', alpha=0.5)
+                      height=8, hue='corpus', hue_order=corpus_chronological_order, alpha=0.5)
 
     g.savefig(fname='figs/modulation_count_in_pieces.jpeg', dpi=200, format='jpeg')
 
@@ -69,7 +72,7 @@ def plot_modulation_counts_in_a_piece_replot(metacorpora) -> sns.relplot():
 def jointplot_modulation_steps_distribution_in_metacorpus(metacorpora) -> sns.JointGrid:
     modulation_step = plotting.ModulationSteps(metacorpora)
     data = modulation_step.get_modulation_steps_data(data_source=metacorpora)
-    g = sns.jointplot(data=data, x='year', y='interval', kind='hist', bins=30)
+    g = sns.jointplot(data=data, x='year', y='interval', kind='hist', bins='auto', marginal_ticks=True)
     g.set_axis_labels('Year', 'Interval on the line of fifths')
     g.savefig(fname='figs/jointplot_modulation_steps_distribution_in_metacorpus.jpeg', dpi=200, format='jpeg')
     return g
@@ -155,8 +158,8 @@ if __name__ == '__main__':
 
 
     # plot_chronological_distribution_of_pieces()
-    plot_modulation_counts_in_a_piece_replot(metacorpora)
-    # jointplot_modulation_steps_distribution_in_metacorpus()
+    # plot_modulation_counts_in_a_piece_replot(metacorpora)
+    jointplot_modulation_steps_distribution_in_metacorpus(metacorpora)
     # displot_modulation_steps_dist_4_modes(metacorpora)
     # facetgrid_modulation_steps_by_era(metacorpora)
     # facetgrid_modulation_steps_with_modes_by_era(metacorpora)
