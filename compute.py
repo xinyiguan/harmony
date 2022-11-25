@@ -1,6 +1,6 @@
 # Created by Xinyi Guan in 2022.
 
-from loader import PieceInfo, CorpusInfo, MetaCorpraInfo
+from modulation.loader import PieceInfo, CorpusInfo, MetaCorpraInfo
 from typing import List, Literal, Union
 import numpy as np
 import pandas as pd
