@@ -1,14 +1,11 @@
 #  By Xinyi Guan, 2022.
 # This script is to create relevant figs for the modulation_notes.md file
 
-from loader import CorpusInfo, MetaCorpraInfo
+from modulation.loader import CorpusInfo, MetaCorpraInfo
 import plotting
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
-import pitchtypes
-
-
 
 
 #  1. plot the chronological distribution of pieces in the meta-corpus

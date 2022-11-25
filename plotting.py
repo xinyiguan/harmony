@@ -5,7 +5,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 import util
-from loader import MetaCorpraInfo, CorpusInfo, PieceInfo
+from modulation.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
 
 
 def transition_prob_heatmap(transition_prob: pd.DataFrame) -> plt.Figure:

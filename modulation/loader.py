@@ -1,4 +1,3 @@
-# Created by Xinyi Guan in 2022.
 """
 The loader contains three class to read the data
 """
@@ -139,7 +138,7 @@ class CorpusInfo:
         # metadata_df['major/minor'] = metadata_df['annotated_key'].map(MAJOR_MINOR_KEYS_Dict)
         return metadata_df
 
-    def get_annotated_piece_name_list(self, manually_filtered_pieces: Optional[List[str]]):
+    def get_annotated_piece_name_list(self, manually_filtered_pieces: Optional[List[str]] = None):
         """check if label count is 0 (not annotated) or not. """
         sub_df = self.metadata_df[['fnames', 'label_count']]
         df2check = sub_df.drop(sub_df[sub_df['label_count'] == 0].index)
@@ -214,7 +213,7 @@ class CorpusInfo:
         corpus_modulation_list = []
         for idx, val in enumerate(self.annotated_piece_name_list):
             piece = PieceInfo(parent_corpus_path=self.corpus_path, piece_name=val)
-            piece_modulation_df = pd.DataFrame(piece.get_localkey_bigrams(), columns=['modulations'])
+            piece_modulation_df = pd.DataFrame(piece.get_localkey_lable_list(), columns=['modulations'])
             piece_modulation_df['fname'] = val
             piece_modulation_df['composed_end'] = \
                 self.metadata_df[self.metadata_df['fnames'] == val]['composed_end'].values[0]
@@ -263,21 +262,7 @@ class CorpusInfo:
                 return transition_prob
             return transition_matrix
 
-    def get_modulation_data_df(self) -> pd.DataFrame:
-        modulation_df_list = []
-        for idx, val in enumerate(self.annotated_piece_name_list):
-            piece = PieceInfo(parent_corpus_path=self.corpus_path, piece_name=val)
-            corpus_name = piece.corpus_name
-            fname = piece.piece_name
-            composed_end_yr = self.metadata_df[self.metadata_df['fnames'] == val]['composed_end'].values[0]
-            localkey_labels = '-'.join(piece.get_localkey_lable_list())
-            num_modulations = len(piece.get_localkey_lable_list())
-            modulation_data_list = list([corpus_name, fname, composed_end_yr, localkey_labels, num_modulations])
-            modulation_df_list.append(modulation_data_list)
 
-        modulation_df = pd.DataFrame(modulation_df_list,
-                                     columns=['corpus', 'fname', 'composed_end', 'localkey_labels', 'num_modulations'])
-        return modulation_df
 
 
 @dataclass
@@ -292,13 +277,13 @@ class MetaCorpraInfo:
         self.corpus_paths: List[str] = [self.meta_corpora_path + val + '/' for idx, val in
                                         enumerate(self.corpus_name_list)]
         self.corpus_list: List[CorpusInfo] = [CorpusInfo(corpus_path=path) for path in self.corpus_paths]
-        self.annotated_corpus_list: List[CorpusInfo] = [corpus_info for corpus_info in self.corpus_list if
-                                                        corpus_info.is_annotated()]
-        # self.harmonies_df = pd.concat(self.get_corpora_aspect_df(aspect='harmonies', selected_keys=None, annotated=True))
+        # self.annotated_corpus_list: List[CorpusInfo] = [corpus_info for corpus_info in self.corpus_list if
+        #                                                 corpus_info.is_annotated()]
+        # self.harmonies_df = self.get_corpora_aspect_df(aspect='harmonies', selected_keys=None, annotated=True)
 
     def get_corpora_concat_metadata_df(self, selected_keys: List[str]):
         metadata_list = []
-        for corpus in self.annotated_corpus_list:
+        for corpus in self.corpus_list:
             corpus_metadata = corpus.metadata_df[corpus.metadata_df['label_count'] > 0]
             corpus_metadata = corpus_metadata[selected_keys]
             metadata_list.append(corpus_metadata)
@@ -309,11 +294,11 @@ class MetaCorpraInfo:
                               selected_keys: Optional[List[str]], annotated: bool = True) -> pd.DataFrame:
         if annotated is True:
             concat_df_list = []
-            for idx, val in enumerate(self.annotated_corpus_list):
+            for idx, val in enumerate(self.corpus_list):
                 aspect_all_df = val.get_corpus_aspect_df(aspect=aspect, selected_keys=selected_keys)
                 concat_df_list.append(aspect_all_df)
             corpora_aspect_df = pd.concat(concat_df_list)
-            corpora_aspect_df = corpora_aspect_df.dropna()  # to drop the rows with index NaN
+            # corpora_aspect_df = corpora_aspect_df.dropna()  # to drop the rows with index NaN
             return corpora_aspect_df
         else:
             concat_df_list = []
@@ -321,7 +306,7 @@ class MetaCorpraInfo:
                 aspect_all_df = val.get_corpus_aspect_df(aspect=aspect, selected_keys=selected_keys)
                 concat_df_list.append(aspect_all_df)
             corpora_aspect_df = pd.concat(concat_df_list)
-            corpora_aspect_df = corpora_aspect_df.dropna()  # to drop the rows with index NaN
+            # corpora_aspect_df = corpora_aspect_df.dropna()  # to drop the rows with index NaN
             return corpora_aspect_df
 
     def get_corpora_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
@@ -356,13 +341,13 @@ class MetaCorpraInfo:
         else:
             raise NotImplementedError
 
-    def get_corpora_modulation_bigrams(self) -> pd.DataFrame:
-        corpora_modulation_list = []
-        for idx, val in enumerate(self.annotated_corpus_list):
-            corpus_modulation_df = val.get_corpus_modulation_bigrams()
-            corpora_modulation_list.append(corpus_modulation_df)
-        corpora_modulation_df = pd.concat(corpora_modulation_list, ignore_index=True)
-        return corpora_modulation_df
+    # def get_corpora_modulation_bigrams(self) -> pd.DataFrame:
+    #     corpora_modulation_list = []
+    #     for idx, val in enumerate(self.corpus_list):
+    #         corpus_modulation_df = val.get_corpus_modulation_bigrams()
+    #         corpora_modulation_list.append(corpus_modulation_df)
+    #     corpora_modulation_df = pd.concat(corpora_modulation_list, ignore_index=True)
+    #     return corpora_modulation_df
 
     def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
                     key: str):
@@ -388,49 +373,36 @@ class MetaCorpraInfo:
             return transition_prob
         return transition_matrix
 
-    def partition_corpora_list_by_era_into_dict(self):
-        corpora_dict_by_era = {}
-        Renaissance = []
-        Baroque = []
-        Classical = []
-        Early_Romantic = []
-        Late_Romantic = []
+    def get_corpus_list_in_chronological_order(self):
+        corpus_year_df_list = []
 
-        for idx, corpus in enumerate(metacorpora.annotated_corpus_list):
+        for corpus in self.corpus_list:
+            mean_year = corpus.metadata_df['composed_end'].mean()
+            mean_year = int(mean_year)
+            corpuswise_corpus_year_df = pd.DataFrame([[corpus.corpus_name, mean_year]], columns=['corpus', 'year'])
+            corpus_year_df_list.append(corpuswise_corpus_year_df)
+        corpus_year_df = pd.concat(corpus_year_df_list)
+        sorted_df = corpus_year_df.sort_values(by=['year'], ascending=True)
+        corpus_list_in_chronological_order = sorted_df['corpus'].to_list()
 
-            year_unique = corpus.metadata_df['composed_end'].unique()
-            if len(year_unique) > 1:
-                avg_comp_year = int(
-                    year_unique.mean())  # assuming the corpus (by individual composer) falls in one era.
-            else:
-                avg_comp_year = year_unique[0]
-
-            if 0 < avg_comp_year < 1650:
-                Renaissance.append(corpus)
-                corpora_dict_by_era['Renaissance'] = Renaissance
-
-            elif 1649 < avg_comp_year < 1759:
-                Baroque.append(corpus)
-                corpora_dict_by_era['Baroque'] = Baroque
-
-            elif 1758 < avg_comp_year < 1819:
-                Classical.append(corpus)
-                corpora_dict_by_era['Classical'] = Classical
-
-            elif 1817 < avg_comp_year < 1857:
-                Early_Romantic.append(corpus)
-                corpora_dict_by_era['Early_Romantic'] = Early_Romantic
-
-            elif 1856 < avg_comp_year < 1931:
-                Late_Romantic.append(corpus)
-                corpora_dict_by_era['Late_Romantic'] = Late_Romantic
-
-        return corpora_dict_by_era
+        return corpus_list_in_chronological_order
 
 
 if __name__ == '__main__':
-    meta_corpora_path = 'dcml_corpora/'
+    meta_corpora_path = '../romantic_piano_corpus/'
     metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
 
-    result = metacorpora.get_corpora_aspect_df(aspect='harmonies', selected_keys=None).head(5)
-    print(result)
+    # corpus_year_df_list=[]
+    #
+    # for corpus in metacorpora.corpus_list:
+    #     mean_year = corpus.metadata_df['composed_end'].mean()
+    #     mean_year = int(mean_year)
+    #     corpuswise_corpus_year_df = pd.DataFrame([[corpus.corpus_name, mean_year]], columns=['corpus', 'year'])
+    #     corpus_year_df_list.append(corpuswise_corpus_year_df)
+    # corpus_year_df = pd.concat(corpus_year_df_list)
+    # sorted_df = corpus_year_df.sort_values(by=['year'], ascending=True)
+    # corpus_list_in_chronological_order = sorted_df['corpus'].to_list()
+    # print(corpus_list_in_chronological_order)
+    # print(sorted_df)
+
+    print(metacorpora.get_corpus_list_in_chronological_order())

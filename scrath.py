@@ -1,6 +1,5 @@
 # Created by Xinyi Guan in 2022.
-import pitchtypes
-from loader import MetaCorpraInfo, CorpusInfo
+from modulation.loader import MetaCorpraInfo, CorpusInfo
 
 
 if __name__=='__main__':
