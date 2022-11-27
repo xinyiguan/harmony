@@ -96,7 +96,7 @@ class PieceInfo:
         else:
             return str('NA')
 
-    def get_localkey_lable_list(self):
+    def get_localkey_label_list(self):
         localkey_list = self.get_aspect_df(aspect='harmonies', selected_keys=['localkey']).values.flatten().tolist()
         prev = object()
         localkey_list = [prev := v for v in localkey_list if prev != v]
@@ -104,7 +104,7 @@ class PieceInfo:
 
     def get_modulation_bigrams_list(self) -> List[str]:
         globalkey = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
-        localkey_list = self.get_localkey_lable_list()
+        localkey_list = self.get_localkey_label_list()
         modulation_bigrams = util.get_n_grams(sequence=localkey_list, n=2)
         modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
 
@@ -214,7 +214,7 @@ class CorpusInfo:
         corpus_modulation_list = []
         for idx, val in enumerate(self.annotated_piece_name_list):
             piece = PieceInfo(parent_corpus_path=self.corpus_path, piece_name=val)
-            piece_modulation_df = pd.DataFrame(piece.get_localkey_lable_list(), columns=['modulations'])
+            piece_modulation_df = pd.DataFrame(piece.get_localkey_label_list(), columns=['modulations'])
             piece_modulation_df['fname'] = val
             piece_modulation_df['composed_end'] = \
                 self.metadata_df[self.metadata_df['fnames'] == val]['composed_end'].values[0]
@@ -390,4 +390,4 @@ class MetaCorpraInfo:
 if __name__ == '__main__':
     piece = PieceInfo(parent_corpus_path="../romantic_piano_corpus/debussy_suite_bergamasque/",
                       piece_name="l075-01_suite_prelude")
-    print(piece.get_modulation_bigrams_list())
+    print(piece.get_localkey_label_list())
