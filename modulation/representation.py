@@ -198,17 +198,7 @@ class ModulationBigram:
 
 
 if __name__ == '__main__':
-    # mod_bigram_str = "C_I_V"
-    # bigram = ModulationBigram.parse(modulation_bigram_str=mod_bigram_str)
-    # print('source_root: ', bigram.source.root())
-    # print('target_root: ', bigram.target.root())
-    # result = bigram.type()
-    # step = bigram.interval()
-    # print(result)
-    # print(step)
-
-    pc1 = SpelledPitchClass('C')
-    pc2 = SpelledPitchClass('B')
-    interval = SpelledIntervalClass('P5')
-    result = pc2 - pc1
+    mod_bigram_str = "C_ii/V/V_V/V"
+    bigram = ModulationBigram.parse(modulation_bigram_str=mod_bigram_str)
+    result = bigram.interval().fifths()
     print(result)
