@@ -79,9 +79,9 @@ class ModulationSteps:
             corpus_name = piece.corpus_name
             fname = piece.piece_name
             composed_end_yr = \
-            corpus.metadata_df[corpus.metadata_df['fnames'] == piece.piece_name]['composed_end'].values[0]
-            localkey_labels = '-'.join(piece.get_localkey_lable_list())
-            num_modulations = len(piece.get_localkey_lable_list())
+                corpus.metadata_df[corpus.metadata_df['fnames'] == piece.piece_name]['composed_end'].values[0]
+            localkey_labels = '-'.join(piece.get_localkey_label_list())
+            num_modulations = len(piece.get_localkey_label_list())
             modulation_data_list = list([corpus_name, fname, composed_end_yr, localkey_labels, num_modulations])
             modulation_df_list.append(modulation_data_list)
 
