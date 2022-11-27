@@ -102,7 +102,7 @@ class PieceInfo:
         localkey_list = [prev := v for v in localkey_list if prev != v]
         return localkey_list
 
-    def get_modulation_bigrams_with_globalkey(self):
+    def get_modulation_bigrams_list(self) -> List[str]:
         globalkey = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
         localkey_list = self.get_localkey_lable_list()
         modulation_bigrams = util.get_n_grams(sequence=localkey_list, n=2)
@@ -126,6 +126,7 @@ class CorpusInfo:
                                                       for name in self.annotated_piece_name_list]
 
         self.harmonies_df = self.get_corpus_aspect_df(aspect='harmonies', selected_keys=None)
+
     def _get_metadata(self) -> pd.DataFrame:
         """
         read the meatadata.tsv into DataFrame, also add a column of 'corpus' to indicate corpus name
@@ -263,8 +264,6 @@ class CorpusInfo:
             return transition_matrix
 
 
-
-
 @dataclass
 class MetaCorpraInfo:
     # containing data for a collection of corpora
@@ -281,7 +280,7 @@ class MetaCorpraInfo:
         #                                                 corpus_info.is_annotated()]
         # self.harmonies_df = self.get_corpora_aspect_df(aspect='harmonies', selected_keys=None, annotated=True)
 
-    def get_corpora_concat_metadata_df(self, selected_keys: List[str]):
+    def get_corpora_metadata_df(self, selected_keys: List[str]):
         metadata_list = []
         for corpus in self.corpus_list:
             corpus_metadata = corpus.metadata_df[corpus.metadata_df['label_count'] > 0]
@@ -389,20 +388,6 @@ class MetaCorpraInfo:
 
 
 if __name__ == '__main__':
-    meta_corpora_path = '../romantic_piano_corpus/'
-    metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
-
-    # corpus_year_df_list=[]
-    #
-    # for corpus in metacorpora.corpus_list:
-    #     mean_year = corpus.metadata_df['composed_end'].mean()
-    #     mean_year = int(mean_year)
-    #     corpuswise_corpus_year_df = pd.DataFrame([[corpus.corpus_name, mean_year]], columns=['corpus', 'year'])
-    #     corpus_year_df_list.append(corpuswise_corpus_year_df)
-    # corpus_year_df = pd.concat(corpus_year_df_list)
-    # sorted_df = corpus_year_df.sort_values(by=['year'], ascending=True)
-    # corpus_list_in_chronological_order = sorted_df['corpus'].to_list()
-    # print(corpus_list_in_chronological_order)
-    # print(sorted_df)
-
-    print(metacorpora.get_corpus_list_in_chronological_order())
+    piece = PieceInfo(parent_corpus_path="../romantic_piano_corpus/debussy_suite_bergamasque/",
+                      piece_name="l075-01_suite_prelude")
+    print(piece.get_modulation_bigrams_list())
