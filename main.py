@@ -8,5 +8,5 @@ if __name__ == '__main__':
     meta_corpora_path = 'romantic_piano_corpus/'
     metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
     modulation = Modulation(metacorpora)
-    modulation.plot_modulation_interval_distribution(fig_path='fixed_figs/')
+    modulation.modulation_interval_by_modes_by_era(fig_path='fixed_figs/')
     print(modulation._modulation_df(data_source=metacorpora).to_markdown())

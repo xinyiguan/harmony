@@ -205,3 +205,102 @@ class Modulation:
             plt.show()
 
         return g
+
+    def plot_modulation_interval_distr_by_modes(self,
+                                                fig_path: Optional[str], savefig: bool = True,
+                                                showfig: bool = False):
+        """
+        displot of modulation interval by modes
+        """
+        data = self._modulation_df(self.metacorpora)
+        g = sns.displot(data=data, x='interval', col='type', kind='hist',
+                        discrete=True, color='#008080')
+
+        g.set_axis_labels("Interval on the line of fifths", "Count")
+
+        if savefig:
+            if fig_path is None:
+                fig_path = '../figs/'
+            if not os.path.exists(fig_path):
+                os.makedirs(fig_path)
+
+        g.savefig(fname=fig_path + 'ms_by_modes.jpeg', dpi=200, format='jpeg')
+
+        if showfig:
+            plt.show()
+
+        return g
+
+    def plot_modulation_interval_by_era(self, fig_path: Optional[str], era_order=None,
+                                        savefig: bool = True, showfig: bool = False):
+        if era_order is None:
+            era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
+
+        df = self._modulation_df(data_source=self.metacorpora)
+
+        # Initialize a grid of plots with an Axes for each era
+        grid = sns.FacetGrid(df, col="era", height=4,
+                             margin_titles=True,
+                             col_order=era_order)
+
+        # Draw a bar plot to show the count of modulation steps
+        grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
+                           multiple='stack', hue='corpus', palette='viridis',
+                           discrete=True)
+
+        # Set name
+        grid.set_axis_labels(x_var='Modulation step (intervals on the line of fifths)', y_var='Count')
+        grid.tight_layout()
+
+        if savefig:
+            if fig_path is None:
+                fig_path = '../figs/'
+            if not os.path.exists(fig_path):
+                os.makedirs(fig_path)
+
+            grid.savefig(fname=fig_path + 'ms_by_era.jpeg', dpi=200, format='jpeg')
+
+        if showfig:
+            plt.show()
+
+        return grid
+
+    def modulation_interval_by_modes_by_era(self, fig_path: Optional[str], era_order=None,
+                                            savefig: bool = True, showfig: bool = False):
+        if era_order is None:
+            era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
+
+        df = self._modulation_df(data_source=self.metacorpora)
+
+        # Initialize a grid of plots with an Axes for each walk
+        grid = sns.FacetGrid(df, col="type", row='era', height=4,
+                             margin_titles=True,
+                             col_order=['MM', 'Mm', 'mM', 'mm'],
+                             row_order=era_order)
+
+        # Draw a bar plot to show the count of modulation steps
+        grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
+                           multiple='stack', hue='corpus', palette='viridis',
+                           discrete=True)
+
+        # Set name
+        grid.set_axis_labels(x_var='Modulation step (intervals on the line of fifths)', y_var='Count')
+
+        # To show the bottom label (interval) in every facet
+        for axis in grid.axes.flat:
+            axis.tick_params(labelbottom=True)
+
+        grid.tight_layout()
+
+        if savefig:
+            if fig_path is None:
+                fig_path = '../figs/'
+            if not os.path.exists(fig_path):
+                os.makedirs(fig_path)
+
+            grid.savefig(fname=fig_path + 'ms_by_mode_by_era.jpeg', dpi=200, format='jpeg')
+
+        if showfig:
+            plt.show()
+
+        return grid
