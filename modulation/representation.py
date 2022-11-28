@@ -42,6 +42,15 @@ class Key:
         pc = self.root + SpelledIntervalClass(interval)
         return pc
 
+    def to_str(self) -> str:
+        if self.mode == 'm':
+            resulting_str = str(self.root).lower()
+        elif self.mode == 'M':
+            resulting_str = str(self.root)
+        else:
+            raise ValueError(f'not applicable mode')
+        return resulting_str
+
 
 @dataclass
 class SingleNumeral:
@@ -54,7 +63,7 @@ class SingleNumeral:
 
     @classmethod
     def parse(cls, key_str: str | Key, numeral_str: str) -> SingleNumeral:
-        numeral_scale_degree_dict = {"i": 1, "ii": 2, "iii": 3, "iv": 1, "v": 5, "vi": 1, "vii": 1,
+        numeral_scale_degree_dict = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
                                      "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
 
         _s_numeral_regex = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IX|IV|V?I{0,3}))$", re.I)
@@ -108,7 +117,6 @@ class SingleNumeral:
         """
         key = Key(root=self.root(), mode=self.quality)
         return key
-
 
 @dataclass
 class Numeral:
@@ -198,7 +206,10 @@ class ModulationBigram:
 
 
 if __name__ == '__main__':
-    mod_bigram_str = "C_ii/V/V_V/V"
-    bigram = ModulationBigram.parse(modulation_bigram_str=mod_bigram_str)
-    result = bigram.interval().fifths()
+
+
+    single_numeral = SingleNumeral.parse(key_str="C", numeral_str="biii")
+    print(single_numeral.key_if_tonicized())
+    result = single_numeral.key_if_tonicized().to_str()
+
     print(result)

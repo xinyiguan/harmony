@@ -48,3 +48,17 @@ def determine_era_based_on_year(year) -> str:
 
     elif 1819 < year < 1931:
         return 'Romantic'
+
+
+MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major', 'E': 'major', 'F': 'major',
+                         'G': 'major',
+                         'A#': 'major', 'B#': 'major', 'C#': 'major', 'D#': 'major', 'E#': 'major', 'F#': 'major',
+                         'G#': 'major',
+                         'Ab': 'major', 'Bb': 'major', 'Cb': 'major', 'Db': 'major', 'Eb': 'major', 'Fb': 'major',
+                         'Gb': 'major',
+                         'a': 'minor', 'b': 'minor', 'c': 'minor', 'd': 'minor', 'e': 'minor',
+                         'f': 'minor', 'g': 'minor',
+                         'a#': 'minor', 'b#': 'minor', 'c#': 'minor', 'd#': 'minor', 'e#': 'minor', 'f#': 'minor',
+                         'g#': 'minor',
+                         'ab': 'minor', 'bb': 'minor', 'cb': 'minor', 'db': 'minor', 'eb': 'minor',
+                         'fb': 'minor', 'gb': 'minor'}
