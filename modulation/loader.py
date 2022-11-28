@@ -21,6 +21,7 @@ class PieceInfo:
     def __post_init__(self):
         self.corpus_name: str = self.parent_corpus_path.split(os.sep)[-2]
         self.globalmode: str = self._global_mode()
+        # self.globalkey: str = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
         self.composed_year: int = self._get_composed_year()
 
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
