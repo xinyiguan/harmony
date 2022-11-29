@@ -2,6 +2,8 @@
 # A meta-script for all plots and computations for the report
 from typing import Dict
 
+import pandas as pd
+
 import plotting
 from modulation.representation import ModulationBigram, HarmonicProgression
 from modulation.plotting import Modulation
@@ -50,8 +52,14 @@ def weight_of_key_region(piece: PieceInfo) -> Dict:
 
 if __name__ == '__main__':
     # # Define the working metacorpora:
-    meta_corpora_path = 'romantic_piano_corpus/'
+    meta_corpora_path = 'petit_dcml_corpus/'
     metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
     modulation = Modulation(metacorpora)
-    result = modulation.localkey_region_profile_df()['era']
-    print(result)
+    # all_data_df = modulation._localkey_region_one_hot_profile_df()
+    # all_data_df = all_data_df.drop(columns=["composed_end"])
+    # all_data_df = all_data_df.groupby('era')
+    # dfs_list = []
+    # for name, data in all_data_df:
+    #     dfs_list.append(data)
+
+    modulation.plot_modulation_key_region_profile(fig_path='key_region/')
