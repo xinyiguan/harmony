@@ -83,7 +83,7 @@ class PieceInfo:
         composed_year = composed_year_df.values[0]
         return composed_year
 
-    def _global_mode(self):
+    def _global_mode(self) -> str:
 
         if 'globalkey_is_minor' in self.get_aspect_df(aspect='harmonies', selected_keys=None).columns:
             key = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey_is_minor'])[
@@ -97,7 +97,10 @@ class PieceInfo:
         else:
             return str('NA')
 
-    def get_localkey_label_list(self):
+    def get_localkey_label_list(self) -> List[str]:
+        """
+        Get the list of modulation list (localkey), e.g. "['I', 'iii', 'I', 'IV', 'III', 'I']"
+        """
         localkey_list = self.get_aspect_df(aspect='harmonies', selected_keys=['localkey']).values.flatten().tolist()
         prev = object()
         localkey_list = [prev := v for v in localkey_list if prev != v]
@@ -111,6 +114,25 @@ class PieceInfo:
 
         globalkey_modulation_bigrams = [globalkey + '_' + item for idx, item in enumerate(modulation_bigrams)]
         return globalkey_modulation_bigrams
+
+    def get_key_region_subdfs_list(self) -> List[pd.DataFrame]:
+        """
+        Get a list of pd.Dataframe of different localkey region info.
+        columns: ["globalkey", "localkey", "chord", "numeral", "form", "figbass", "changes", "relativeroot",
+                "root", "bass_note", "key_region_label"]
+        """
+        harmonies_df = self.get_aspect_df(aspect='harmonies', selected_keys=None)
+
+        harmonies_df['key_region_label'] = harmonies_df['localkey'].ne(harmonies_df['localkey'].shift()).cumsum()
+        harmonies_df = harmonies_df.groupby('key_region_label')
+        localkey_df = harmonies_df[
+            ["globalkey", "localkey", "chord", "numeral", "form", "figbass", "changes", "relativeroot",
+             "root", "bass_note", "key_region_label"]]
+        dfs = []
+        for name, data in localkey_df:
+            dfs.append(data)
+
+        return dfs
 
 
 @dataclass
@@ -391,4 +413,15 @@ class MetaCorpraInfo:
 if __name__ == '__main__':
     piece = PieceInfo(parent_corpus_path="../romantic_piano_corpus/debussy_suite_bergamasque/",
                       piece_name="l075-01_suite_prelude")
-    print(piece.get_localkey_label_list())
+
+    # metacorpora = MetaCorpraInfo(meta_corpora_path='../petit_dcml_corpus/')
+    # result = metacorpora.get_corpora_unique_key_values(aspect='harmonies', key='localkey')
+    # print(result)
+
+    # df = metacorpora.get_corpora_aspect_df('harmonies', selected_keys=['corpus', 'fname', 'composed_end', 'localkey'])
+
+    df = piece.get_aspect_df('harmonies',
+                             selected_keys=['corpus', 'fname', 'localkey'])
+
+    one_hot_localkey_df = pd.get_dummies(df['localkey'])
+    print(one_hot_localkey_df)

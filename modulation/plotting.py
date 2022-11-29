@@ -3,6 +3,7 @@ import os
 from dataclasses import dataclass
 from typing import List, Optional, Union, Literal
 
+import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
@@ -55,6 +56,16 @@ class Modulation:
 
         modulation_df = pd.DataFrame(modulation_df_list,
                                      columns=['corpus', 'fname', 'composed_end', 'localkey_labels', 'num_modulations'])
+        return modulation_df
+
+    def _modulation_seq_df(self) -> pd.DataFrame:
+        modulation_df_list = []
+        for val in self.metacorpora.corpus_name_list:
+            corpus = CorpusInfo(corpus_path=self.metacorpora.meta_corpora_path + val + '/')
+            corpus_modulation_df = self._corpus_modulation_seq_df(corpus)
+            modulation_df_list.append(corpus_modulation_df)
+
+        modulation_df = pd.concat(modulation_df_list, ignore_index=True)
         return modulation_df
 
     def _piece_modulation_bigram_df(self, piece: PieceInfo,
@@ -169,61 +180,25 @@ class Modulation:
             heatmap_df = _metacorpora_modulation_short_df(data_source)
             return heatmap_df
 
-    def _piece_target_modulation_df(self, piece: PieceInfo):
-        """Get the dataframe containing modulation-relevant [key_numeral, key_tpc, year, era, corpus] of a piece"""
-        localkey_list = piece.get_localkey_label_list()
-        globalkey = piece.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
-
-        modulation_df = pd.DataFrame(data=localkey_list, columns=['localkeys'])
-        key_numeral = [numeral for numeral in localkey_list]
-        key_tpc = [Numeral.parse(key_str=globalkey, numeral_str=numeral).key_if_tonicized().to_str() for numeral
-                   in localkey_list]
-
-        modulation_df['key_numeral'] = key_numeral
-        modulation_df['key_tpc'] = key_tpc
-        return modulation_df
-
-    def _target_modulation_df(self, data_source: Union[MetaCorpraInfo, CorpusInfo, PieceInfo]) -> pd.DataFrame:
+    def localkey_region_profile_df(self, save_tsv: bool = False) -> pd.DataFrame:
         """
-        Transform data into [key_numeral, key_tpc, year, era, corpus] dataframe.
+        columns: corpus, fname, composed_end + [one-hot of all unique localkey label]
         """
+        # [corpus, fname, composed_end, localkey_label, num_modulation]
+        localkey_df = self._modulation_seq_df()[['corpus', 'fname', 'composed_end', 'localkey_labels']]
 
-        def _corpus_target_modulation_df(piece_list) -> pd.DataFrame:
-            corpus_modulation_df_list = []
-            for piece in piece_list:
-                piece_modulation_df = self._piece_target_modulation_df(piece)
-                corpus_modulation_df_list.append(piece_modulation_df)
-            corpus_modulation_df = pd.concat(corpus_modulation_df_list, ignore_index=True)
-            return corpus_modulation_df
+        # transform localkey_labels to list of str, e.g., "['I', 'iii', 'I']"
+        localkey_df['localkey_labels'] = localkey_df.localkey_labels.apply(lambda x: x.split('-'))
 
-        def _metacorpora_target_modulation_df(corpus_list) -> pd.DataFrame:
-            metacorpora_modulation_list = []
-            for corpus in corpus_list:
-                eligible_piece_list = self._eligible_pieces_list(corpus)
-                corpus_modulation_df = _corpus_target_modulation_df(eligible_piece_list)
-                metacorpora_modulation_list.append(corpus_modulation_df)
-            metacorpora_modulation_df = pd.concat(metacorpora_modulation_list, ignore_index=True)
-            return metacorpora_modulation_df
+        # convert the localkey_list to one-hot encoding format: sol pir_slow
+        # (https://stackoverflow.com/questions/45312377/how-to-one-hot-encode-from-a-pandas-column-containing-a-list)
+        one_hot_localkey_df = localkey_df.drop('localkey_labels', 1).join(
+            localkey_df.localkey_labels.str.join('|').str.get_dummies())
+        one_hot_localkey_df = one_hot_localkey_df.astype({"composed_end": "int"})
 
-        if isinstance(data_source, PieceInfo):
-            modulation_df = self._piece_target_modulation_df(data_source)
-            target_modulation_df = modulation_df['key_numeral'].value_counts().reset_index().rename(
-                columns={'index': 'key_numeral', 'key_numeral': 'count'})
-            return target_modulation_df
-
-        elif isinstance(data_source, CorpusInfo):
-            annotated_piece_list = self._eligible_pieces_list(data_source)
-            modulation_df = _corpus_target_modulation_df(annotated_piece_list)
-            target_modulation_df = modulation_df['key_numeral'].value_counts().reset_index().rename(
-                columns={'index': 'key_numeral', 'key_numeral': 'count'})
-            return target_modulation_df
-
-        elif isinstance(data_source, MetaCorpraInfo):
-            annotated_corpus_list = self._eligible_corpora_list(data_source)
-            modulation_df = _metacorpora_target_modulation_df(annotated_corpus_list)
-            target_modulation_df = modulation_df['key_numeral'].value_counts().reset_index().rename(
-                columns={'index': 'key_numeral', 'key_numeral': 'count'})
-            return target_modulation_df
+        if save_tsv:
+            one_hot_localkey_df.to_csv('localkey_region_profile.tsv', sep="\t")
+        return one_hot_localkey_df
 
     # _______________________________________ plotting : bigram _________________________________________
 
@@ -244,7 +219,8 @@ class Modulation:
         corpus_chronological_order = self.metacorpora.get_corpus_list_in_chronological_order()
 
         if hue_by == "corpus":
-            sns.histplot(data=df, x='composed_end', stat='count', hue='corpus', multiple="stack", hue_order=corpus_chronological_order)
+            sns.histplot(data=df, x='composed_end', stat='count', hue='corpus', multiple="stack",
+                         hue_order=corpus_chronological_order)
         elif hue_by == "mode":
             sns.histplot(data=df, x='composed_end', stat='count', hue='mode', multiple="stack")
         elif hue_by is None:
@@ -274,13 +250,7 @@ class Modulation:
         """
 
         # prepare the dataframe for plotting: [corpus, fname, composed_end, localkey_label, num_modulation]
-        modulation_df_list = []
-        for idx, val in enumerate(self.metacorpora.corpus_name_list):
-            corpus = CorpusInfo(corpus_path=self.metacorpora.meta_corpora_path + val + '/')
-            corpus_modulation_df = self._corpus_modulation_seq_df(corpus)
-            modulation_df_list.append(corpus_modulation_df)
-
-        modulation_df = pd.concat(modulation_df_list, ignore_index=True)
+        modulation_df = self._modulation_seq_df()
 
         # for hue order
         corpus_chronological_order = self.metacorpora.get_corpus_list_in_chronological_order()
@@ -451,16 +421,25 @@ class Modulation:
         return grid
 
     def plot_violinplot_swarmplot_by_era(self, fig_path: Optional[str], era_order=None,
-                                         savefig: bool = True, showfig: bool = False):
+                                         savefig: bool = True, showfig: bool = False,
+                                         orientation: Literal["h", "v"] = "v"):
         if era_order is None:
             era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
 
         df = self._modulation_bigram_df(data_source=self.metacorpora)
-        plt.figure(figsize=(24, 12))
-        sns.violinplot(data=df, x='era', y="interval", split='True', palette='rainbow', order=era_order)
-        sns.swarmplot(data=df, x='era', y="interval", order=era_order, palette="ch:.25", alpha=.8, s=1)
+        if orientation == 'h':
+            plt.figure(figsize=(24, 12))
+            sns.violinplot(data=df, x='era', y="interval", split='True', palette='rainbow', order=era_order)
+            sns.swarmplot(data=df, x='era', y="interval", order=era_order, palette="ch:.25", alpha=.8, s=1)
 
-        plt.title("Modulation steps by Era")
+        elif orientation == 'v':
+            plt.figure(figsize=(16, 24))
+            sns.violinplot(data=df, x='interval', y="era", split='True', palette='rainbow', order=era_order)
+            sns.swarmplot(data=df, x='interval', y="era", order=era_order, palette="ch:.25", alpha=.8, s=1)
+
+        else:
+            raise ValueError(f'Unexpected input {orientation}')
+        plt.title("Modulation interval distribution by Era")
 
         if savefig:
             if fig_path is None:
@@ -477,14 +456,22 @@ class Modulation:
 
     # _______________________________________ plotting : target key _________________________________________
 
-    def plot_target_modulation_distr(self,
-                                     fig_path: Optional[str], savefig: bool = True,
-                                     showfig: bool = False):
+    def plot_modulation_key_region_profile_by_era(self,
+                                                  fig_path: Optional[str], savefig: bool = True,
+                                                  showfig: bool = False):
         """
         displot of modulation interval by modes
         """
-        data = self._target_modulation_df(self.metacorpora).head(20)
-        fig = sns.catplot(data=data, x="key_numeral", y="count", palette="ch:.25", kind="bar")
+
+        # prepare the dataframe for plotting: [corpus, fname, composed_end, localkey_label, num_modulation]
+        modulation_df_list = []
+        for idx, val in enumerate(self.metacorpora.corpus_name_list):
+            corpus = CorpusInfo(corpus_path=self.metacorpora.meta_corpora_path + val + '/')
+            corpus_modulation_df = self._corpus_modulation_seq_df(corpus)
+            modulation_df_list.append(corpus_modulation_df)
+        target_df = pd.concat(modulation_df_list, ignore_index=True)
+
+        fig = sns.catplot(data=target_df, x="key_numeral", y="count", palette="ch:.25", kind="bar")
 
         fig.set_axis_labels("Target Key", "Count")
         fig.set_xticklabels(rotation=45, ha='right', size=6)
@@ -495,7 +482,7 @@ class Modulation:
             if not os.path.exists(fig_path):
                 os.makedirs(fig_path)
 
-        fig.savefig(fname=fig_path + 'target_modulation_key_profile.jpeg', dpi=200, format='jpeg')
+        fig.savefig(fname=fig_path + 'modulation_key_region_profile_by_era.jpeg', dpi=200, format='jpeg')
 
         if showfig:
             plt.show()
