@@ -19,7 +19,6 @@ class Modulation:
     metacorpora: MetaCorpraInfo
 
     # _______________________________________ data _________________________________________
-
     def _eligible_pieces_list(self, corpus: CorpusInfo) -> List[PieceInfo]:
         eligible_pcs_list = []
         for piece in corpus.annotated_piece_list:
@@ -180,12 +179,25 @@ class Modulation:
             heatmap_df = _metacorpora_modulation_short_df(data_source)
             return heatmap_df
 
-    def localkey_region_profile_df(self, save_tsv: bool = False) -> pd.DataFrame:
+    def _localkey_region_profile_df(self) -> pd.DataFrame:
+        # [corpus, fname, composed_end, era, localkey_labels]
+        localkey_df = self._modulation_seq_df()[['corpus', 'fname', 'composed_end', 'localkey_labels']]
+
+        # transform localkey_labels to list of str, e.g., "['I', 'iii', 'I']"
+        localkey_df['localkey_labels'] = localkey_df.localkey_labels.apply(lambda x: x.split('-'))
+        localkey_df['era'] = localkey_df['composed_end'].apply(
+            lambda x: util.determine_era_based_on_year(x))
+
+        return localkey_df
+
+    def _localkey_region_one_hot_profile_df(self, save_tsv: bool = False) -> pd.DataFrame:
         """
         columns: corpus, fname, composed_end, era + [one-hot of all unique localkey label]
         """
         # [corpus, fname, composed_end, localkey_label, num_modulation]
         localkey_df = self._modulation_seq_df()[['corpus', 'fname', 'composed_end', 'localkey_labels']]
+        localkey_df['era'] = localkey_df['composed_end'].apply(
+            lambda x: util.determine_era_based_on_year(x))
 
         # transform localkey_labels to list of str, e.g., "['I', 'iii', 'I']"
         localkey_df['localkey_labels'] = localkey_df.localkey_labels.apply(lambda x: x.split('-'))
@@ -195,9 +207,6 @@ class Modulation:
         one_hot_localkey_df = localkey_df.drop('localkey_labels', 1).join(
             localkey_df.localkey_labels.str.join('|').str.get_dummies())
         one_hot_localkey_df = one_hot_localkey_df.astype({"composed_end": "int"})
-
-        one_hot_localkey_df['era'] = one_hot_localkey_df['composed_end'].apply(
-            lambda x: util.determine_era_based_on_year(x))
 
         if save_tsv:
             one_hot_localkey_df.to_csv('localkey_region_profile.tsv', sep="\t")
@@ -457,27 +466,47 @@ class Modulation:
 
         return plt
 
-    # _______________________________________ plotting : target key _________________________________________
+    # _______________________________________ plotting : key region _________________________________________
 
-    def plot_modulation_key_region_profile_by_era(self,
-                                                  fig_path: Optional[str], savefig: bool = True,
-                                                  showfig: bool = False):
+    def plot_modulation_key_region_profile(self,
+                                           fig_path: Optional[str], savefig: bool = True,
+                                           showfig: bool = False):
         """
-        displot of modulation interval by modes
+        x-axis is the unique localkey label, y-axis is the ratio
         """
 
-        # prepare the dataframe for plotting: [corpus, fname, composed_end, localkey_label, num_modulation]
-        modulation_df_list = []
-        for idx, val in enumerate(self.metacorpora.corpus_name_list):
-            corpus = CorpusInfo(corpus_path=self.metacorpora.meta_corpora_path + val + '/')
-            corpus_modulation_df = self._corpus_modulation_seq_df(corpus)
-            modulation_df_list.append(corpus_modulation_df)
-        target_df = pd.concat(modulation_df_list, ignore_index=True)
+        # columns: [corpus, fname, composed_end, era, localkey_labels]
+        all_data_df = self._localkey_region_one_hot_profile_df()
+        all_data_df = all_data_df.drop(columns=["composed_end"])
+        all_data_df = all_data_df.groupby('era')
+        dfs_list = []
+        for name, data in all_data_df:
+            dfs_list.append(data)
 
-        fig = sns.catplot(data=target_df, x="key_numeral", y="count", palette="ch:.25", kind="bar")
+        ren_count_df = dfs_list[0].sum(axis=0, numeric_only=True)
+        ren_count = ren_count_df.sum()
+        ren_normalized = ren_count_df / ren_count
 
-        fig.set_axis_labels("Target Key", "Count")
-        fig.set_xticklabels(rotation=45, ha='right', size=6)
+        baroque_count_df = dfs_list[1].sum(axis=0, numeric_only=True)
+        baroque_count = baroque_count_df.sum()
+        baroque_normalized = baroque_count_df / baroque_count
+
+        classical_count_df = dfs_list[2].sum(axis=0, numeric_only=True)
+        classical_count = classical_count_df.sum()
+        classical_normalized = classical_count_df / classical_count
+
+        romantic_count_df = dfs_list[3].sum(axis=0, numeric_only=True)
+        romantic_count = romantic_count_df.sum()
+        romantic_normalized = romantic_count_df / romantic_count
+
+        # total_counts_df = pd.concat([ren_count_df, baroque_count_df, classical_count_df, romantic_count_df], axis=1)
+        # total_counts_df.rename(columns={"0": "Ren", "1": "Baroque", "2": "Classical", "3": "Rom"})
+        fig, ax = plt.subplots()
+
+        sns.lineplot(data=ren_normalized, ax=ax)
+        sns.lineplot(data=baroque_normalized, ax=ax)
+        sns.lineplot(data=classical_normalized, ax=ax)
+        sns.lineplot(data=romantic_normalized, ax=ax)
 
         if savefig:
             if fig_path is None:
@@ -485,7 +514,7 @@ class Modulation:
             if not os.path.exists(fig_path):
                 os.makedirs(fig_path)
 
-        fig.savefig(fname=fig_path + 'modulation_key_region_profile_by_era.jpeg', dpi=200, format='jpeg')
+            plt.savefig(fname=fig_path + 'key_region_profile.jpeg', dpi=200, format='jpeg')
 
         if showfig:
             plt.show()
