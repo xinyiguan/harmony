@@ -2,9 +2,9 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import re
-from typing import Literal
+from typing import Literal, List
 
-import pitchtypes
+import pandas as pd
 from pitchtypes import SpelledPitchClass, SpelledIntervalClass
 
 
@@ -55,6 +55,7 @@ class Key:
 @dataclass
 class SingleNumeral:
     key: Key
+    numeral_str: str
     degree: int
     alteration: int
     quality: Literal['M', 'm']
@@ -90,7 +91,7 @@ class SingleNumeral:
         else:
             raise ValueError(f'Unexpected mixed accidentals')
 
-        instance = cls(key=key, degree=degree, alteration=alteration, quality=quality)
+        instance = cls(key=key, degree=degree, alteration=alteration, quality=quality, numeral_str=numeral_str)
         return instance
 
     def root(self) -> SpelledPitchClass:
@@ -117,6 +118,7 @@ class SingleNumeral:
         """
         key = Key(root=self.root(), mode=self.quality)
         return key
+
 
 @dataclass
 class Numeral:
@@ -160,6 +162,12 @@ class Numeral:
     def key_if_tonicized(self) -> Key:
         key_if_tonicized = Key(root=self.root(), mode=self.quality())
         return key_if_tonicized
+
+    def applied_chord_to_roman_numeral(self) -> SingleNumeral:
+        """
+        Applied chords are converted into Roman numerals relative to the key, e.g. V/V becomes II
+        """
+        raise NotImplementedError
 
 
 @dataclass
@@ -205,9 +213,40 @@ class ModulationBigram:
         return modulation_step
 
 
+@dataclass
+class HarmonicProgression:
+    """A class of harmonic progression occurs within a local key region"""
+    globalkey: Key
+    localkey: SingleNumeral
+    roots: List[str]
+    roman_numerals: List[str]
+    chords: List[str]
+
+    @classmethod
+    def parse(cls, key_region_df: pd.DataFrame) -> HarmonicProgression:
+        """
+        Takes the key_region_subdf from the PieceInfo.
+        columns: ["globalkey", "localkey", "chord", "numeral", "form", "figbass", "changes", "relativeroot",
+                    "root", "bass_note", "key_region_label"]
+        """
+        if not isinstance(key_region_df, pd.DataFrame):
+            raise TypeError(f"expected pd.DataFrame as input, got {key_region_df}")
+
+        globalkey_str = key_region_df['globalkey'].tolist()[0]
+        globalkey = Key.parse(key_str=globalkey_str)
+        localkey = SingleNumeral.parse(key_str=globalkey, numeral_str=key_region_df['localkey'].tolist()[0])
+        root = key_region_df['root'].tolist()
+        numeral = key_region_df['numeral'].tolist()
+        chords = key_region_df['chord'].tolist()
+
+        instance = cls(globalkey=globalkey, localkey=localkey, roots=root, roman_numerals=numeral, chords=chords)
+        return instance
+
+    def length(self) -> int:
+        return len(self.roots)
+
+
 if __name__ == '__main__':
-
-
     single_numeral = SingleNumeral.parse(key_str="C", numeral_str="biii")
     print(single_numeral.key_if_tonicized())
     result = single_numeral.key_if_tonicized().to_str()
