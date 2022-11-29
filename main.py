@@ -53,5 +53,5 @@ if __name__ == '__main__':
     meta_corpora_path = 'romantic_piano_corpus/'
     metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
     modulation = Modulation(metacorpora)
-    result = modulation.localkey_region_profile_df()
+    result = modulation.localkey_region_profile_df()['era']
     print(result)

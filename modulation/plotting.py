@@ -182,7 +182,7 @@ class Modulation:
 
     def localkey_region_profile_df(self, save_tsv: bool = False) -> pd.DataFrame:
         """
-        columns: corpus, fname, composed_end + [one-hot of all unique localkey label]
+        columns: corpus, fname, composed_end, era + [one-hot of all unique localkey label]
         """
         # [corpus, fname, composed_end, localkey_label, num_modulation]
         localkey_df = self._modulation_seq_df()[['corpus', 'fname', 'composed_end', 'localkey_labels']]
@@ -195,6 +195,9 @@ class Modulation:
         one_hot_localkey_df = localkey_df.drop('localkey_labels', 1).join(
             localkey_df.localkey_labels.str.join('|').str.get_dummies())
         one_hot_localkey_df = one_hot_localkey_df.astype({"composed_end": "int"})
+
+        one_hot_localkey_df['era'] = one_hot_localkey_df['composed_end'].apply(
+            lambda x: util.determine_era_based_on_year(x))
 
         if save_tsv:
             one_hot_localkey_df.to_csv('localkey_region_profile.tsv', sep="\t")
