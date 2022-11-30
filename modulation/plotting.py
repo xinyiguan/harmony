@@ -235,8 +235,9 @@ class Modulation:
                          hue_order=corpus_chronological_order)
         elif hue_by == "mode":
             sns.histplot(data=df, x='composed_end', stat='count', hue='mode', multiple="stack")
-        elif hue_by is None:
-            sns.histplot(data=df, x='composed_end', stat='count', multiple="stack")
+
+        # elif hue_by is None:
+        #     sns.histplot(data=df, x='composed_end', stat='count')
 
         else:
             raise ValueError(f'Not valid argument {hue_by} for hue_by')
@@ -340,8 +341,8 @@ class Modulation:
         displot of modulation interval by modes
         """
         data = self._modulation_bigram_df(self.metacorpora)
-        g = sns.displot(data=data, x='interval', col='type', kind='hist',
-                        discrete=True, color='#008080')
+        g = sns.displot(data=data, x='interval', col='type', kind='hist', discrete=True,
+                        color='#A64B29')
 
         g.set_axis_labels("Interval on the line of fifths", "Count")
 
@@ -364,6 +365,7 @@ class Modulation:
             era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
 
         df = self._modulation_bigram_df(data_source=self.metacorpora)
+        platte = 'plasma'
 
         # Initialize a grid of plots with an Axes for each era
         grid = sns.FacetGrid(df, col="era", height=4,
@@ -371,9 +373,8 @@ class Modulation:
                              col_order=era_order)
 
         # Draw a bar plot to show the count of modulation steps
-        grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
-                           multiple='stack', hue='corpus', palette='viridis',
-                           discrete=True)
+        grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count', discrete=True,
+                           multiple='stack', hue='corpus', palette=platte)
 
         # Set name
         grid.set_axis_labels(x_var='Modulation step (intervals on the line of fifths)', y_var='Count')
@@ -398,6 +399,7 @@ class Modulation:
             era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
 
         df = self._modulation_bigram_df(data_source=self.metacorpora)
+        platte = "plasma"
 
         # Initialize a grid of plots with an Axes for each walk
         grid = sns.FacetGrid(df, col="type", row='era', height=4,
@@ -406,9 +408,8 @@ class Modulation:
                              row_order=era_order)
 
         # Draw a bar plot to show the count of modulation steps
-        grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
-                           multiple='stack', hue='corpus', palette='viridis',
-                           discrete=True)
+        grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count', discrete=True,
+                           multiple='stack', hue='corpus', palette=platte)
 
         # Set name
         grid.set_axis_labels(x_var='Modulation step (intervals on the line of fifths)', y_var='Count')
@@ -432,22 +433,31 @@ class Modulation:
 
         return grid
 
-    def plot_violinplot_swarmplot_by_era(self, fig_path: Optional[str], era_order=None,
+    def plot_violinplot_swarmplot_by_era(self, fig_path: Optional[str], fig_name: str = None,
+                                         era_order=None,
                                          savefig: bool = True, showfig: bool = False,
                                          orientation: Literal["h", "v"] = "v"):
         if era_order is None:
             era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
 
         df = self._modulation_bigram_df(data_source=self.metacorpora)
+
+        platte = util.set_plot_style_palette_4()
+
         if orientation == 'h':
             plt.figure(figsize=(24, 12))
-            sns.violinplot(data=df, x='era', y="interval", split='True', palette='rainbow', order=era_order)
+            sns.violinplot(data=df, x='era', y="interval", split='True', palette=platte, order=era_order)
             sns.swarmplot(data=df, x='era', y="interval", order=era_order, palette="ch:.25", alpha=.8, s=1)
+            plt.xlabel("Era")
+            plt.ylabel("Modulation step (intervals on the line of fifths)")
+
 
         elif orientation == 'v':
             plt.figure(figsize=(16, 24))
-            sns.violinplot(data=df, x='interval', y="era", split='True', palette='rainbow', order=era_order)
+            sns.violinplot(data=df, x='interval', y="era", split='True', palette=platte, order=era_order)
             sns.swarmplot(data=df, x='interval', y="era", order=era_order, palette="ch:.25", alpha=.8, s=1)
+            plt.xlabel("Modulation step (intervals on the line of fifths)")
+            plt.ylabel("Era")
 
         else:
             raise ValueError(f'Unexpected input {orientation}')
@@ -458,8 +468,10 @@ class Modulation:
                 fig_path = '../figs/'
             if not os.path.exists(fig_path):
                 os.makedirs(fig_path)
-
-            plt.savefig(fname=fig_path + 'ms_violinplot_swarmplot_by_era.jpeg', dpi=200, format='jpeg')
+            if fig_name is None:
+                plt.savefig(fname=fig_path + 'ms_violinplot_swarmplot_by_era.jpeg', dpi=200, format='jpeg')
+            else:
+                plt.savefig(fname=fig_path + fig_name + '.jpeg', dpi=200, format='jpeg')
 
         if showfig:
             plt.show()
@@ -478,35 +490,53 @@ class Modulation:
         # columns: [corpus, fname, composed_end, era, localkey_labels]
         all_data_df = self._localkey_region_one_hot_profile_df()
         all_data_df = all_data_df.drop(columns=["composed_end"])
+        all_data_df = all_data_df.set_index(keys="fname")  # set the "fname" column as index
+
+        sum_all_counts = all_data_df.sum(axis=0, numeric_only=True)
+        sum_all_counts.name = 'Sum'
+        sum_all_counts.columns = all_data_df.columns
+        top_labels = sum_all_counts.nlargest(n=30, keep='all')
+        x_axis_labels = list(top_labels.index.values)
+
         all_data_df = all_data_df.groupby('era')
         dfs_list = []
         for name, data in all_data_df:
             dfs_list.append(data)
 
-        ren_count_df = dfs_list[0].sum(axis=0, numeric_only=True)
-        ren_count = ren_count_df.sum()
-        ren_normalized = ren_count_df / ren_count
+        ren_df = dfs_list[0].sum(axis=0, numeric_only=True)
+        ren_count = ren_df.sum()
+        ren_normalized = ren_df / ren_count
+        ren_data = ren_normalized.loc[x_axis_labels]
 
-        baroque_count_df = dfs_list[1].sum(axis=0, numeric_only=True)
-        baroque_count = baroque_count_df.sum()
-        baroque_normalized = baroque_count_df / baroque_count
+        baroque_df = dfs_list[1].sum(axis=0, numeric_only=True)
+        baroque_count = baroque_df.sum()
+        baroque_normalized = baroque_df / baroque_count
+        baroque_data = baroque_normalized.loc[x_axis_labels]
 
-        classical_count_df = dfs_list[2].sum(axis=0, numeric_only=True)
-        classical_count = classical_count_df.sum()
-        classical_normalized = classical_count_df / classical_count
+        classical_df = dfs_list[2].sum(axis=0, numeric_only=True)
+        classical_count = classical_df.sum()
+        classical_normalized = classical_df / classical_count
+        classical_data = classical_normalized.loc[x_axis_labels]
 
-        romantic_count_df = dfs_list[3].sum(axis=0, numeric_only=True)
-        romantic_count = romantic_count_df.sum()
-        romantic_normalized = romantic_count_df / romantic_count
+        romantic_df = dfs_list[3].sum(axis=0, numeric_only=True)
+        romantic_count = romantic_df.sum()
+        romantic_normalized = romantic_df / romantic_count
+        romantic_data = romantic_normalized.loc[x_axis_labels]
 
-        # total_counts_df = pd.concat([ren_count_df, baroque_count_df, classical_count_df, romantic_count_df], axis=1)
-        # total_counts_df.rename(columns={"0": "Ren", "1": "Baroque", "2": "Classical", "3": "Rom"})
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(16, 12))
+        sns.set_style("ticks")
+        sns.set_context(rc={"lines.linewidth": 3})
 
-        sns.lineplot(data=ren_normalized, ax=ax)
-        sns.lineplot(data=baroque_normalized, ax=ax)
-        sns.lineplot(data=classical_normalized, ax=ax)
-        sns.lineplot(data=romantic_normalized, ax=ax)
+        sns.lineplot(data=ren_data, ax=ax, label="Renaissance", color="#AB1D22", markers=True, linewidth=5)
+        sns.lineplot(data=baroque_data, ax=ax, label="Baroque", color="#DB9B34", markers=True, linewidth=5)
+        sns.lineplot(data=classical_data, ax=ax, label="Classical", color="#108B96", markers=True, linewidth=5)
+        sns.lineplot(data=romantic_data, ax=ax, label="Romantic", color="#151D29", markers=True, linewidth=5)
+
+        ax.legend(loc='upper right', frameon=False)
+
+        plt.setp(ax.get_xticklabels(), fontsize=10, rotation=90,
+                 horizontalalignment="right")
+        fig.suptitle("Key regions distributions", fontsize=18)
 
         if savefig:
             if fig_path is None:

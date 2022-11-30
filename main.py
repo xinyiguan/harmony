@@ -15,7 +15,6 @@ from modulation.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
 # 1. metacorpora_basics:
 def plot_metacorpora_basics(metacorpora: MetaCorpraInfo, fig_path: str):
     modulation = Modulation(metacorpora)
-    modulation.plot_chronological_distribution_of_pieces(fig_path=fig_path, hue_by=None, fig_name='chronological_distr')
     modulation.plot_chronological_distribution_of_pieces(fig_path=fig_path, hue_by='corpus',
                                                          fig_name='chronological_distr_corpus')
     modulation.plot_chronological_distribution_of_pieces(fig_path=fig_path, hue_by='mode',
@@ -34,8 +33,13 @@ def plot_modulation_steps(metacorpora: MetaCorpraInfo, fig_path: str):
     modulation.plot_modulation_interval_distr_by_modes(fig_path=fig_path)
     modulation.plot_modulation_interval_by_era(fig_path=fig_path)
     modulation.plot_modulation_interval_by_modes_by_era(fig_path=fig_path)
-    modulation.plot_violinplot_swarmplot_by_era(fig_path=fig_path)
+    modulation.plot_violinplot_swarmplot_by_era(fig_path=fig_path, orientation="h", fig_name="ms_violinplot_swarmplot_by_era_h")
+    modulation.plot_violinplot_swarmplot_by_era(fig_path=fig_path, orientation="v", fig_name="ms_violinplot_swarmplot_by_era_v")
 
+
+def plot_key_regions(metacorpora: MetaCorpraInfo, fig_path: str):
+    modulation = Modulation(metacorpora)
+    modulation.plot_modulation_key_region_profile(fig_path=fig_path)
 
 # _______________________________________ compute _________________________________________
 def weight_of_key_region(piece: PieceInfo) -> Dict:
@@ -52,14 +56,9 @@ def weight_of_key_region(piece: PieceInfo) -> Dict:
 
 if __name__ == '__main__':
     # # Define the working metacorpora:
-    meta_corpora_path = 'petit_dcml_corpus/'
+    meta_corpora_path = 'dcml_corpora/'
     metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
     modulation = Modulation(metacorpora)
-    # all_data_df = modulation._localkey_region_one_hot_profile_df()
-    # all_data_df = all_data_df.drop(columns=["composed_end"])
-    # all_data_df = all_data_df.groupby('era')
-    # dfs_list = []
-    # for name, data in all_data_df:
-    #     dfs_list.append(data)
 
-    modulation.plot_modulation_key_region_profile(fig_path='key_region/')
+    plot_key_regions(metacorpora=metacorpora, fig_path="updated_figs/")
+

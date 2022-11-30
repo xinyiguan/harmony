@@ -1,8 +1,8 @@
 #  By Xinyi Guan on 25 November 2022.
 from typing import List
-
 import numpy as np
 import pandas as pd
+import seaborn as sns
 
 
 # ===================================
@@ -62,3 +62,80 @@ MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major',
                          'g#': 'minor',
                          'ab': 'minor', 'bb': 'minor', 'cb': 'minor', 'db': 'minor', 'eb': 'minor',
                          'fb': 'minor', 'gb': 'minor'}
+
+# ===================================
+# seaborn plot                          |
+# ===================================
+
+def set_palette_6():
+    sns.set()
+    sns.set_style("white")
+    platte=sns.set_palette(sns.color_palette(["#046586",
+                                       "#28A91A",
+                                       "#C9A77C",
+                                       "#F4A016",
+                                       "#F6BBC6",
+                                       "#E71F19"]))
+
+    return platte
+def set_plot_style_palette_4():
+    sns.set()
+    sns.set_style("white")
+    sns.set_palette(sns.color_palette(["#046586",
+                                       "#28A9A1",
+                                       "#F4A016",
+                                       "#F6BBC6"]))
+
+
+def set_platte_10():
+    sns.set()
+    sns.set_style("white")
+    platte=sns.set_palette(sns.color_palette(["#255459",
+                                       "#4D8C8C",
+                                       "#BFAA3F",
+                                       "#FFB419",
+                                       "#BF491F",
+                                              
+                                       "#BF847E",
+                                       "#F2AF88",
+                                       "#F2E3B6",
+                                       "#0F4459",
+                                       "#141A26",
+                                       ]))
+    return platte
+
+
+def set_platte_25():
+    sns.set()
+    sns.set_style("white")
+    platte = sns.set_palette(sns.color_palette(["#BF4417",
+                                                "#D97C2B",
+                                                "#F2B544",
+                                                "#223A59",
+                                                "#0B2559",
+
+                                                "#6393A6",
+                                                "#BF785E",
+                                                "#F2CBBD",
+                                                "#A65B4B",
+                                                "#733B36",
+
+                                                "#59202B",
+                                                "#A68195",
+                                                "#F2B138",
+                                                "#F29E38",
+                                                "#F24E29",
+
+                                                "#BF491F",
+                                                "#FFB419",
+                                                "#BFAA3F",
+                                                "#4D8C8C",
+                                                "#255459",
+
+                                                "#707317",
+                                                "#3A4010",
+                                                "#B3E0F2",
+                                                "#35648C",
+                                                "#1E3859",
+                                                ]))
+    return platte
