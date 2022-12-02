@@ -9,9 +9,9 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 from matplotlib.ticker import FuncFormatter
 
-from modulation import util
-from modulation.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
-from modulation.representation import ModulationBigram, SingleNumeral, Numeral
+from harmony import util
+from harmony.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
+from harmony.representation import ModulationBigram, SingleNumeral, Numeral
 
 
 @dataclass
@@ -69,7 +69,7 @@ class Modulation:
 
     def _piece_modulation_bigram_df(self, piece: PieceInfo,
                                     fifths: bool = True) -> pd.DataFrame:
-        """Get the dataframe containing modulation-relevant [bigram, type, interval, year, era, corpus] of a piece"""
+        """Get the dataframe containing harmony-relevant [bigram, type, interval, year, era, corpus] of a piece"""
 
         bigrams_list = piece.get_modulation_bigrams_list()
         # df = []
@@ -134,7 +134,7 @@ class Modulation:
             return modulation_df
 
     def _piece_modulation_short_df(self, this_piece: PieceInfo) -> pd.DataFrame:
-        """Transform the modulation df into a dataframe with columns: [interval, count, year, era] of a piece"""
+        """Transform the harmony df into a dataframe with columns: [interval, count, year, era] of a piece"""
 
         interval_df = self._modulation_bigram_df(this_piece)
         modulation_short_df = interval_df['interval'].value_counts().reset_index().rename(
@@ -287,7 +287,7 @@ class Modulation:
                                               fig_path: Optional[str], savefig: bool = True,
                                               showfig: bool = False) -> sns.JointGrid:
         """
-        heatmap/jointplot of modulation steps distribution in the metacorpora.
+        heatmap/jointplot of harmony steps distribution in the metacorpora.
         """
         data = self._modulation_bigram_df(data_source=self.metacorpora, fifths=True)
         min, max = data['interval'].min(), data['interval'].max()
@@ -338,7 +338,7 @@ class Modulation:
                                                 fig_path: Optional[str], savefig: bool = True,
                                                 showfig: bool = False):
         """
-        displot of modulation interval by modes
+        displot of harmony interval by modes
         """
         data = self._modulation_bigram_df(self.metacorpora)
         g = sns.displot(data=data, x='interval', col='type', kind='hist', discrete=True,
@@ -372,7 +372,7 @@ class Modulation:
                              margin_titles=True,
                              col_order=era_order)
 
-        # Draw a bar plot to show the count of modulation steps
+        # Draw a bar plot to show the count of harmony steps
         grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count', discrete=True,
                            multiple='stack', hue='corpus', palette=platte)
 
@@ -407,7 +407,7 @@ class Modulation:
                              col_order=['MM', 'Mm', 'mM', 'mm'],
                              row_order=era_order)
 
-        # Draw a bar plot to show the count of modulation steps
+        # Draw a bar plot to show the count of harmony steps
         grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count', discrete=True,
                            multiple='stack', hue='corpus', palette=platte)
 

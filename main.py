@@ -5,9 +5,9 @@ from typing import Dict
 import pandas as pd
 
 import plotting
-from modulation.representation import ModulationBigram, HarmonicProgression
-from modulation.plotting import Modulation
-from modulation.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
+from harmony.representation import ModulationBigram, HarmonicProgression
+from harmony.plotting import Modulation
+from harmony.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
 
 
 # _______________________________________ plots _________________________________________

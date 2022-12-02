@@ -39,7 +39,7 @@ def get_transition_matrix(n_grams: np.ndarray) -> pd.DataFrame:
 
 
 # ===================================
-# modulation                        |
+# harmony                        |
 # ===================================
 
 # parsing a Roman Numeral symbol
@@ -209,7 +209,7 @@ def determine_modulation_bigram_type(modulation_bigram: str) -> Literal['MM', 'M
 
 def filter_modulation_bigrams_by_types(modulation_bigrams_list: List[str],
                                        modulation_type: Literal['MM', 'Mm', 'mM', 'mm']) -> List[str]:
-    """Given a list of modulation bigrams, filter the list by modulation_type   """
+    """Given a list of harmony bigrams, filter the list by modulation_type   """
     filtered_bigrams = [bigram for bigram in modulation_bigrams_list if
                         determine_modulation_bigram_type(bigram) == modulation_type]
     return filtered_bigrams
@@ -217,7 +217,7 @@ def filter_modulation_bigrams_by_types(modulation_bigrams_list: List[str],
 
 def compute_bigram_modulation_steps(bigram: str, fifths: bool = False):
     """Transform a bigram (e.g.'Db_I_#II') to an interval to scale degree (e.g.'Db_1_#2') and to
-    finally calculate the modulation step (e.g.'a2'), if fifths is true, return (e.g. '')"""
+    finally calculate the harmony step (e.g.'a2'), if fifths is true, return (e.g. '')"""
 
     # roman numeral unit (#I, I)--> arabic numeral unit (#1, 1)
     globalkey = bigram.split('_')[0]

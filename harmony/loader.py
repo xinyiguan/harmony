@@ -1,28 +1,145 @@
-"""
-The loader contains three class to read the data
-"""
+from __future__ import annotations
+from harmony.representation import Key, Numeral
 import os
 from dataclasses import dataclass
 from typing import List, Optional, Literal
 
 import numpy as np
 import pandas as pd
-from matplotlib import pyplot as plt
 
 import util
 
 
 @dataclass
+class AspectInfo:
+
+    def n_grams(self, n: int, label_seq: List) -> np.ndarray:
+        n_grams = util.get_n_grams(sequence=label_seq, n=n)
+        return n_grams
+
+    def transition_matrix(self, n: int, label_seq: List, probability: bool = True):
+        n_grams = self.n_grams(n=n, label_seq=label_seq)
+        transition_matrix = util.get_transition_matrix(n_grams=n_grams)
+        if probability:
+            transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
+            return transition_prob
+        return transition_matrix
+
+    def unique_labels(self, label_seq: List) -> List:
+        unique_labels = list(set(label_seq))
+        return unique_labels
+
+    def remove_repeated_labels_occurrences(self, label_seq: List) -> List:
+        """Transform label seq [A, A, A, B, C, C, A, C, C, C] to [A, B, C, A, C]"""
+        prev = object()
+        occurrence_list = [prev := v for v in label_seq if prev != v]
+        return occurrence_list
+
+
+@dataclass
+class HarmonyInfo(AspectInfo):
+    globalkey: Key
+    localkey_seq: List[Numeral]
+    chord_seq: List[str]
+    numeral_seq: List[Numeral]
+    chord_type_seq: List[str]
+    root_seq: List[int]
+    bass_note_seq: List[int]
+
+    def localkey_labels_occurrences(self) -> List:
+        localkey_labels_occurrences = self.remove_repeated_labels_occurrences(label_seq=self.localkey_seq)
+        return localkey_labels_occurrences
+
+    def modulation_bigrams_list(self) -> List[str]:
+        """Returns a list of str representing the modulation bigram. e.g., "f#_IV/V_bIII/V" """
+        globalkey = self.globalkey.to_str()
+        localkey_list = self.localkey_labels_occurrences()
+        mod_bigrams = util.get_n_grams(sequence=localkey_list, n=2)
+        mod_bigrams = ["_".join([item[0], item[1]]) for item in mod_bigrams]
+        bigrams = [globalkey + '_' + item for item in mod_bigrams]
+        return bigrams
+
+
+class MeasureInfo:
+    pass
+
+
+class NoteInfo:
+    pass
+
+
+@dataclass
+class PieceMetaInfo:
+    corpus_name: str
+    composed_start: int
+    composed_end: int
+    composer: str
+    annotated_key: Key
+    label_count: int | None
+
+
+@dataclass
 class PieceInfo:
     # containing the data for a single piece
-    parent_corpus_path: str
-    piece_name: str
+    meta_info: PieceMetaInfo
+    harmony_info: HarmonyInfo
+    measure_info: MeasureInfo
+    note_info: NoteInfo
 
-    def __post_init__(self):
-        self.corpus_name: str = self.parent_corpus_path.split(os.sep)[-2]
-        self.globalmode: str = self._global_mode()
-        # self.globalkey: str = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
-        self.composed_year: int = self._get_composed_year()
+    @classmethod
+    def from_corpus_directory(cls, parent_corpus_path: str, piece_name: str) -> PieceInfo:
+
+        def read_tsv_data(source_df: pd.DataFrame, selected_col_name: str) -> List:
+            """read a column of dataframe, and output it as a list"""
+            result = source_df[selected_col_name].values.flatten().tolist()
+            return result
+
+        corpus_name: str = parent_corpus_path.split(os.sep)[-2]
+        metadata_tsv_df: pd.DataFrame = pd.read_csv(parent_corpus_path + 'metadata.tsv', sep='\t')
+        annotated_key = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['annotated_key']
+        composer = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composer']
+        composed_start = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composed_start']
+        composed_end = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composed_end']
+        label_count = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['label_count']
+
+        meta_info = PieceMetaInfo(
+            corpus_name=corpus_name,
+            composed_start=composed_start,
+            composed_end=composed_end,
+            composer=composer,
+            annotated_key=Key.parse(key_str=annotated_key),
+            label_count=label_count)
+
+        harmoniees_df = pd.DataFrame = pd.read_csv(parent_corpus_path + 'harmonies/' + piece_name + '.tsv', sep='\t')
+
+        localkey_seq = harmoniees_df['localkey'].values.flatten().tolist()
+        chord_seq = harmoniees_df['chord'].values.flatten().tolist()
+        numeral_seq = harmoniees_df['numeral'].values.flatten().tolist()
+        chord_type_seq = harmoniees_df['chord_type'].values.flatten().tolist()
+        root_seq = harmoniees_df['root'].values.flatten().tolist()
+        bass_note_seq = harmoniees_df['bass_note'].values.flatten().tolist()
+
+        harmony_info = HarmonyInfo(
+            globalkey=annotated_key,
+            localkey_seq=localkey_seq,
+            chord_seq=chord_seq,
+            numeral_seq=numeral_seq,
+            chord_type_seq=chord_type_seq,
+            root_seq=root_seq,
+            bass_note_seq=bass_note_seq
+        )
+        measure_info = MeasureInfo()
+        note_info = NoteInfo()
+
+        instance = cls(
+            meta_info=meta_info,
+            harmony_info=harmony_info,
+            measure_info=measure_info,
+            note_info=note_info,
+        )
+        return instance
+
+    # ===================================================
 
     def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
                       selected_keys: Optional[List[str]]) -> pd.DataFrame:
@@ -99,7 +216,7 @@ class PieceInfo:
 
     def get_localkey_label_list(self) -> List[str]:
         """
-        Get the list of modulation list (localkey), e.g. "['I', 'iii', 'I', 'IV', 'III', 'I']"
+        Get the list of harmony list (localkey), e.g. "['I', 'iii', 'I', 'IV', 'III', 'I']"
         """
         localkey_list = self.get_aspect_df(aspect='harmonies', selected_keys=['localkey']).values.flatten().tolist()
         prev = object()
