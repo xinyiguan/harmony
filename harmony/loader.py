@@ -71,11 +71,16 @@ class NoteInfo:
 @dataclass
 class PieceMetaInfo:
     corpus_name: str
+    piece_name: str
     composed_start: int
     composed_end: int
     composer: str
     annotated_key: Key
     label_count: int | None
+
+
+class CorpusMetaInfo:
+    piece_list: List[str]
 
 
 @dataclass
@@ -88,7 +93,6 @@ class PieceInfo:
 
     @classmethod
     def from_corpus_directory(cls, parent_corpus_path: str, piece_name: str) -> PieceInfo:
-
         def read_tsv_data(source_df: pd.DataFrame, selected_col_name: str) -> List:
             """read a column of dataframe, and output it as a list"""
             result = source_df[selected_col_name].values.flatten().tolist()
@@ -104,6 +108,7 @@ class PieceInfo:
 
         meta_info = PieceMetaInfo(
             corpus_name=corpus_name,
+            piece_name=piece_name,
             composed_start=composed_start,
             composed_end=composed_end,
             composer=composer,
@@ -139,124 +144,27 @@ class PieceInfo:
         )
         return instance
 
-    # ===================================================
-
-    def get_aspect_df(self, aspect: Literal['harmonies', 'measures', 'notes'],
-                      selected_keys: Optional[List[str]]) -> pd.DataFrame:
-        """
-        To read the piecewise aspect(harmonies/measures/notes) tsv files as a DataFrame, always attach metadata (parent corpus, fname)
-        :param: selected_keys: a list of keys (such as 'chord','numeral') in the tsv file. If none (default), select all keys.
-        :return: a DataFrame
-        """
-
-        piece_aspect_tsv_path = self.parent_corpus_path + aspect + '/' + self.piece_name + '.tsv'
-        all_df = pd.read_csv(piece_aspect_tsv_path, sep='\t')
-        df_length = all_df.shape[0]
-        all_df['corpus'] = [self.corpus_name] * df_length
-        all_df['fname'] = [self.piece_name] * df_length
-
-        if selected_keys is None:
-            return all_df
+    def annotated(self) -> bool:
+        label_count = self.meta_info.label_count
+        if label_count is not None:
+            return True
         else:
-            selected_df = all_df[selected_keys]
-            selected_df = selected_df.dropna()  # to drop the rows with index NaN
-            return selected_df
-
-    def get_piecewise_unique_key_values(self, aspect: Literal['harmonies', 'measures', 'notes'],
-                                        key: str) -> List[str]:
-        if aspect == 'harmonies':
-            df = self.get_aspect_df(aspect='harmonies', selected_keys=None)
-            unique_key_vals = df[key].unique().tolist()
-            return unique_key_vals
-
-        elif aspect == 'measures':
-            df = self.get_aspect_df(aspect='measures', selected_keys=None)
-            unique_key_vals = df[key].unique().tolist()
-            return unique_key_vals
-
-        elif aspect == 'notes':
-            df = self.get_aspect_df(aspect='notes', selected_keys=None)
-            unique_key_vals = df[key].unique().tolist()
-            return unique_key_vals
-
-    def get_n_grams(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'], key: str) -> np.ndarray:
-        key_val_list = self.get_aspect_df(aspect=aspect, selected_keys=[key]).values.flatten().tolist()
-        n_grams = util.get_n_grams(sequence=key_val_list, n=n)
-        return n_grams
-
-    def get_transition_matrix(self, n: int, aspect: Literal['harmonies', 'measures', 'notes'],
-                              key: str,
-                              probability: bool = False) -> pd.DataFrame:
-        n_grams = self.get_n_grams(n=n, aspect=aspect, key=key)
-        transition_matrix = util.get_transition_matrix(n_grams=n_grams)
-        if probability:
-            transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
-            return transition_prob
-        return transition_matrix
-
-    def _get_composed_year(self) -> int:
-        metadata_tsv_df = pd.read_csv(self.parent_corpus_path + 'metadata.tsv', sep='\t')
-        composed_year_df = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == self.piece_name]['composed_end']
-        composed_year = composed_year_df.values[0]
-        return composed_year
-
-    def _global_mode(self) -> str:
-
-        if 'globalkey_is_minor' in self.get_aspect_df(aspect='harmonies', selected_keys=None).columns:
-            key = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey_is_minor'])[
-                'globalkey_is_minor'].mode().values[0]
-            if key == 0:
-                return str('MAJOR')
-            elif key == 1:
-                return str('MINOR')
-            else:
-                raise ValueError
-        else:
-            return str('NA')
-
-    def get_localkey_label_list(self) -> List[str]:
-        """
-        Get the list of harmony list (localkey), e.g. "['I', 'iii', 'I', 'IV', 'III', 'I']"
-        """
-        localkey_list = self.get_aspect_df(aspect='harmonies', selected_keys=['localkey']).values.flatten().tolist()
-        prev = object()
-        localkey_list = [prev := v for v in localkey_list if prev != v]
-        return localkey_list
-
-    def get_modulation_bigrams_list(self) -> List[str]:
-        globalkey = self.get_aspect_df(aspect='harmonies', selected_keys=['globalkey']).values.flatten()[0]
-        localkey_list = self.get_localkey_label_list()
-        modulation_bigrams = util.get_n_grams(sequence=localkey_list, n=2)
-        modulation_bigrams = ["_".join([item[0], item[1]]) for idx, item in enumerate(modulation_bigrams)]
-
-        globalkey_modulation_bigrams = [globalkey + '_' + item for idx, item in enumerate(modulation_bigrams)]
-        return globalkey_modulation_bigrams
-
-    def get_key_region_subdfs_list(self) -> List[pd.DataFrame]:
-        """
-        Get a list of pd.Dataframe of different localkey region info.
-        columns: ["globalkey", "localkey", "chord", "numeral", "form", "figbass", "changes", "relativeroot",
-                "root", "bass_note", "key_region_label"]
-        """
-        harmonies_df = self.get_aspect_df(aspect='harmonies', selected_keys=None)
-
-        harmonies_df['key_region_label'] = harmonies_df['localkey'].ne(harmonies_df['localkey'].shift()).cumsum()
-        harmonies_df = harmonies_df.groupby('key_region_label')
-        localkey_df = harmonies_df[
-            ["globalkey", "localkey", "chord", "numeral", "form", "figbass", "changes", "relativeroot",
-             "root", "bass_note", "key_region_label"]]
-        dfs = []
-        for name, data in localkey_df:
-            dfs.append(data)
-
-        return dfs
+            return False
 
 
 @dataclass
 class CorpusInfo:
     # containing data for a single corpus
-    corpus_path: str
 
+    @classmethod
+    def from_corpus_directory(cls, corpus_path: str) -> CorpusInfo:
+        corpus_name: str = corpus_path.split(os.sep)[-2]
+        metadata_tsv_df: pd.DataFrame = pd.read_csv(corpus_path + 'metadata.tsv', sep='\t')
+
+        instance = cls()
+        return instance
+
+    # =======================================
     def __post_init__(self):
         self.corpus_name = self.corpus_path.split(os.sep)[-2]
         self.metadata_df = self._get_metadata()
