@@ -214,16 +214,19 @@ class ModulationBigram:
 
 
 @dataclass
-class HarmonicProgression:
-    """A class of harmonic progression occurs within a local key region"""
+class Progression:
+    """A class of harmonic progression (Roman Numerals) occurs within a local key region"""
     globalkey: Key
+    preceding_key: Key | None
+    following_key: Key | None
+
     localkey: SingleNumeral
     roots: List[str]
     roman_numerals: List[str]
     chords: List[str]
 
     @classmethod
-    def parse(cls, key_region_df: pd.DataFrame) -> HarmonicProgression:
+    def parse(cls, key_region_df: pd.DataFrame) -> Progression:
         """
         Takes the key_region_subdf from the PieceInfo.
         columns: ["globalkey", "localkey", "chord", "numeral", "form", "figbass", "changes", "relativeroot",

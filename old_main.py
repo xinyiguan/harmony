@@ -1,7 +1,7 @@
 #  By Xinyi Guan, 2022.
 # This script is to create relevant figs for the modulation_notes.md file
 
-from modulation.loader import CorpusInfo, MetaCorpraInfo
+from harmony.loader import CorpusInfo, MetaCorpraInfo
 import plotting
 import pandas as pd
 import seaborn as sns
@@ -66,7 +66,7 @@ def plot_modulation_counts_in_a_piece_replot(metacorpora) -> sns.relplot():
 
 #  3. plot Distribution of modulations
 
-## 3.1 jointplot of modulation steps distribution in the metacorpus
+## 3.1 jointplot of harmony steps distribution in the metacorpus
 def jointplot_modulation_steps_distribution_in_metacorpus(metacorpora) -> sns.JointGrid:
     modulation_step = plotting.ModulationSteps(metacorpora)
     data = modulation_step.get_modulation_steps_data(data_source=metacorpora)
@@ -76,7 +76,7 @@ def jointplot_modulation_steps_distribution_in_metacorpus(metacorpora) -> sns.Jo
     return g
 
 
-## 3.2. View modulation steps dist in 4 types of mode transitions
+## 3.2. View harmony steps dist in 4 types of mode transitions
 def displot_modulation_steps_dist_4_modes(metacorpora):
     modulation_step = plotting.ModulationSteps(metacorpora)
     data = modulation_step.get_modulation_steps_with_transition_types_data(metacorpora)
@@ -101,7 +101,7 @@ def facetgrid_modulation_steps_by_era(metacorpora, era_order=None):
                          margin_titles=True,
                          col_order=era_order)
 
-    # Draw a bar plot to show the count of modulation steps
+    # Draw a bar plot to show the count of harmony steps
     grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
                        multiple='stack', hue='corpus', palette='viridis',
                        discrete=True)
@@ -116,7 +116,7 @@ def facetgrid_modulation_steps_by_era(metacorpora, era_order=None):
     return grid
 
 
-## 3.4. facetgrid of modulation steps with modes and era data
+## 3.4. facetgrid of harmony steps with modes and era data
 def facetgrid_modulation_steps_with_modes_by_era(metacorpora, era_order=None):
     if era_order is None:
         era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
@@ -130,7 +130,7 @@ def facetgrid_modulation_steps_with_modes_by_era(metacorpora, era_order=None):
                          col_order=['MM', 'Mm', 'mM', 'mm'],
                          row_order=era_order)
 
-    # Draw a bar plot to show the count of modulation steps
+    # Draw a bar plot to show the count of harmony steps
     grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
                        multiple='stack', hue='corpus', palette='viridis',
                        discrete=True)

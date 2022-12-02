@@ -5,7 +5,7 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 
 import util
-from modulation.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
+from harmony.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
 
 
 def transition_prob_heatmap(transition_prob: pd.DataFrame) -> plt.Figure:
@@ -91,7 +91,7 @@ class ModulationSteps:
 
     def piecewise_modulation_data_with_transition_types_df(self, piece: PieceInfo, modulations_bigrams_RN: List,
                                                            steps_in_fifths: bool = True):
-        """Get the dataframe containing modulation-relevant [bigram, interval, type, year, era, corpus] of a piece"""
+        """Get the dataframe containing harmony-relevant [bigram, interval, type, year, era, corpus] of a piece"""
         dfs = []
         for modulation_type in ['MM', 'Mm', 'mM', 'mm']:
             bigrams = util.filter_modulation_bigrams_by_types(modulation_bigrams_list=modulations_bigrams_RN,
@@ -205,7 +205,7 @@ class ModulationSteps:
                              col_order=['MM', 'Mm', 'mM', 'mm'],
                              row_order=['Baroque', 'Classical', 'Early Rom.', 'Late Rom.'])
 
-        # Draw a bar plot to show the count of modulation steps
+        # Draw a bar plot to show the count of harmony steps
         grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
                            multiple='stack', hue='corpus', palette='YlGnBu',
                            discrete=True)

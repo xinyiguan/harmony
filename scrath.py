@@ -1,5 +1,5 @@
 # Created by Xinyi Guan in 2022.
-from modulation.loader import MetaCorpraInfo, CorpusInfo
+from harmony.loader import MetaCorpraInfo, CorpusInfo
 
 
 if __name__=='__main__':
