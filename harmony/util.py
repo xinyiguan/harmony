@@ -9,7 +9,7 @@ import seaborn as sns
 # n-gram                            |
 # ===================================
 
-def get_n_grams(sequence: List[str], n: int) -> np.ndarray:
+def get_n_grams(sequence: List[object], n: int) -> np.ndarray:
     """
     Transform a list of string to a list of n-grams.
     :param sequence:
@@ -17,7 +17,7 @@ def get_n_grams(sequence: List[str], n: int) -> np.ndarray:
     :return:
     """
     transitions = np.array(
-        [['_'.join(sequence[i - (n - 1):i]), sequence[i]] for i in range(n - 1, len(sequence))])
+        [['_'.join(map(str, sequence[i - (n - 1):i])), str(sequence[i])] for i in range(n - 1, len(sequence))])
     return transitions
 
 

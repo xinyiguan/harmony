@@ -1,162 +1,66 @@
-#  By Xinyi Guan, 2022.
-# This script is to create relevant figs for the modulation_notes.md file
+# Created by Xinyi Guan in 2022.
+# A meta-script for all plots and computations for the report
+from typing import Dict
 
-from harmony.loader import CorpusInfo, MetaCorpraInfo
-import plotting
 import pandas as pd
-import seaborn as sns
-from matplotlib import pyplot as plt
+
+import plotting
+from harmony.representation import ModulationBigram, Progression
+from harmony.old_plotting import Modulation
+from harmony.loader import MetaCorpraInfo, CorpusInfo, PieceInfo
 
 
-#  1. plot the chronological distribution of pieces in the meta-corpus
-def plot_chronological_distribution_of_pieces(metacorpora) -> plt.Figure:
-    composed_years = metacorpora.get_corpora_concat_metadata_df(selected_keys=['corpus', 'fnames', 'composed_end'])
-    fig, ax = plt.subplots(figsize=(10, 8))
-    sns.histplot(data=composed_years, x='composed_end', stat='count', color='#580F41', kde=True)
-    plt.savefig(fname='figs/pieces_chronological_dist.jpeg', dpi=200, format='jpeg')
-    return fig
+# _______________________________________ plots _________________________________________
+
+# 1. metacorpora_basics:
+def plot_metacorpora_basics(metacorpora: MetaCorpraInfo, fig_path: str):
+    modulation = Modulation(metacorpora)
+    modulation.plot_chronological_distribution_of_pieces(fig_path=fig_path, hue_by='corpus',
+                                                         fig_name='chronological_distr_corpus')
+    modulation.plot_chronological_distribution_of_pieces(fig_path=fig_path, hue_by='mode',
+                                                         fig_name='chronological_distr_mode')
 
 
-#  2. plot modulations count within a piece in the meta-corpus
-def plot_modulation_counts_in_a_piece_jointgrid(metacorpora) -> sns.JointGrid:
-    sns.set_theme(style="darkgrid")
-    modulation_step = plotting.ModulationSteps(metacorpora)
-    # prepare the dataframe for plotting: [corpus, fname, composed_end, localkey_label, num_modulation]
-    modulation_df_list = []
-    for idx, val in enumerate(metacorpora.corpus_name_list):
-        corpus = CorpusInfo(corpus_path=metacorpora.metacorpora_path + val + '/')
-        corpus_modulation_df = modulation_step.get_corpuswise_modulation_data_df(corpus)
-        modulation_df_list.append(corpus_modulation_df)
-
-    modulation_data_df = pd.concat(modulation_df_list, ignore_index=True)
-
-    # plot the df
-    sns.set_theme(style="ticks")
-    g = sns.JointGrid(data=modulation_data_df, x='composed_end', y='num_modulations',
-                      height=8, hue='corpus', marginal_ticks=True)
-    g.plot_joint(sns.scatterplot, s=30, alpha=0.6)
-    g.plot_marginals(sns.histplot)
-    g.savefig(fname='figs/modulation_count_in_pieces.jpeg', dpi=200, format='jpeg')
-
-    return g
+# 2. Frequency of modulations in the corpus
+def plot_modulation_frequencies(metacorpora: MetaCorpraInfo, fig_path: str):
+    modulation = Modulation(metacorpora)
+    modulation.plot_modulation_counts_in_a_piece(fig_path=fig_path)
 
 
-def plot_modulation_counts_in_a_piece_replot(metacorpora) -> sns.relplot():
-    modulation_step = plotting.ModulationSteps(metacorpora)
-    # prepare the dataframe for plotting: [corpus, fname, composed_end, localkey_label, num_modulation]
-    modulation_df_list = []
-    for idx, val in enumerate(metacorpora.corpus_name_list):
-        corpus = CorpusInfo(corpus_path=metacorpora.meta_corpora_path + val + '/')
-        corpus_modulation_df = modulation_step.get_corpuswise_modulation_data_df(corpus)
-        modulation_df_list.append(corpus_modulation_df)
-
-    modulation_data_df = pd.concat(modulation_df_list, ignore_index=True)
-
-    # for hue order
-    corpus_chronological_order = metacorpora.get_corpus_list_in_chronological_order()
-
-    # plot the df
-    g = sns.relplot(data=modulation_data_df, x='composed_end', y='num_modulations',
-                    height=8, hue='corpus', hue_order=corpus_chronological_order, alpha=0.5)
-
-    g.savefig(fname='figs/modulation_count_in_pieces.jpeg', dpi=200, format='jpeg')
-
-    return g
+# 3. Modulation steps(interval)
+def plot_modulation_steps(metacorpora: MetaCorpraInfo, fig_path: str):
+    modulation = Modulation(metacorpora)
+    modulation.plot_modulation_interval_distr_by_modes(fig_path=fig_path)
+    modulation.plot_modulation_interval_by_era(fig_path=fig_path)
+    modulation.plot_modulation_interval_by_modes_by_era(fig_path=fig_path)
+    modulation.plot_violinplot_swarmplot_by_era(fig_path=fig_path, orientation="h",
+                                                fig_name="ms_violinplot_swarmplot_by_era_h")
+    modulation.plot_violinplot_swarmplot_by_era(fig_path=fig_path, orientation="v",
+                                                fig_name="ms_violinplot_swarmplot_by_era_v")
 
 
-#  3. plot Distribution of modulations
-
-## 3.1 jointplot of harmony steps distribution in the metacorpus
-def jointplot_modulation_steps_distribution_in_metacorpus(metacorpora) -> sns.JointGrid:
-    modulation_step = plotting.ModulationSteps(metacorpora)
-    data = modulation_step.get_modulation_steps_data(data_source=metacorpora)
-    g = sns.jointplot(data=data, x='year', y='interval', kind='hist', bins='auto', marginal_ticks=True)
-    g.set_axis_labels('Year', 'Interval on the line of fifths')
-    g.savefig(fname='figs/jointplot_modulation_steps_distribution_in_metacorpus.jpeg', dpi=200, format='jpeg')
-    return g
+def plot_key_regions(metacorpora: MetaCorpraInfo, fig_path: str):
+    modulation = Modulation(metacorpora)
+    modulation.plot_modulation_key_region_profile(fig_path=fig_path)
 
 
-## 3.2. View harmony steps dist in 4 types of mode transitions
-def displot_modulation_steps_dist_4_modes(metacorpora):
-    modulation_step = plotting.ModulationSteps(metacorpora)
-    data = modulation_step.get_modulation_steps_with_transition_types_data(metacorpora)
-    g = sns.displot(data=data, x='interval', col='type', kind='hist',
-                    kde=True, discrete=True, color='#008080')
-
-    g.set_axis_labels("Interval on the line of fifths", "Count")
-    g.savefig(fname='figs/displot_modulation_steps_dist_4_modes.jpeg', dpi=200, format='jpeg')
-    return g
-
-
-## 3.3 facetgrid_modulation_steps_by_era:
-def facetgrid_modulation_steps_by_era(metacorpora, era_order=None):
-    if era_order is None:
-        era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
-
-    modulation_step = plotting.ModulationSteps(metacorpora)
-    df = modulation_step.get_modulation_steps_with_transition_types_data(data_source=metacorpora)
-
-    # Initialize a grid of plots with an Axes for each walk
-    grid = sns.FacetGrid(df, col="era", height=4,
-                         margin_titles=True,
-                         col_order=era_order)
-
-    # Draw a bar plot to show the count of harmony steps
-    grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
-                       multiple='stack', hue='corpus', palette='viridis',
-                       discrete=True)
-
-    # Set name
-    grid.set_axis_labels(x_var='Modulation step (intervals on the line of fifths)', y_var='Count')
-
-    grid.tight_layout()
-
-    grid.savefig(fname='figs/facetgrid_modulation_steps_by_era.jpeg', dpi=200, format='jpeg')
-
-    return grid
-
-
-## 3.4. facetgrid of harmony steps with modes and era data
-def facetgrid_modulation_steps_with_modes_by_era(metacorpora, era_order=None):
-    if era_order is None:
-        era_order = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
-
-    modulation_step = plotting.ModulationSteps(metacorpora)
-    df = modulation_step.get_modulation_steps_with_transition_types_data(data_source=metacorpora)
-
-    # Initialize a grid of plots with an Axes for each walk
-    grid = sns.FacetGrid(df, col="type", row='era', height=4,
-                         margin_titles=True,
-                         col_order=['MM', 'Mm', 'mM', 'mm'],
-                         row_order=era_order)
-
-    # Draw a bar plot to show the count of harmony steps
-    grid.map_dataframe(sns.histplot, data=df, x='interval', stat='count',
-                       multiple='stack', hue='corpus', palette='viridis',
-                       discrete=True)
-
-    # Set name
-    grid.set_axis_labels(x_var='Modulation step (intervals on the line of fifths)', y_var='Count')
-
-    # To show the bottom label (interval) in every facet
-    for axis in grid.axes.flat:
-        axis.tick_params(labelbottom=True)
-
-    grid.tight_layout()
-
-    grid.savefig(fname='figs/facetgrid_modulation_steps_with_modes_by_era.jpeg', dpi=200, format='jpeg')
-
-    return grid
+# _______________________________________ compute _________________________________________
+def weight_of_key_region(piece: PieceInfo) -> Dict:
+    key_region_weights_dict = {}
+    total_labels_num = piece.get_aspect_df(aspect='harmonies', selected_keys=None).shape[0]
+    key_region_subdfs_list = piece.get_key_region_subdfs_list()
+    for item in key_region_subdfs_list:
+        hamonic_progression = HarmonicProgression.parse(key_region_df=item)
+        subdf_label_num = hamonic_progression.length()
+        proportion = subdf_label_num / total_labels_num
+        key_region_weights_dict[hamonic_progression.localkey.numeral_str] = proportion
+    return key_region_weights_dict
 
 
 if __name__ == '__main__':
-    # Define the meta-corpus to work with
-    metacorpora_path = 'dcml_corpora/'
-    metacorpora = MetaCorpraInfo(meta_corpora_path=metacorpora_path)
+    # # Define the working metacorpora:
+    meta_corpora_path = 'dcml_corpora/'
+    metacorpora = MetaCorpraInfo(meta_corpora_path=meta_corpora_path)
+    modulation = Modulation(metacorpora)
 
-    # plot_chronological_distribution_of_pieces()
-    # plot_modulation_counts_in_a_piece_replot(metacorpora)
-    jointplot_modulation_steps_distribution_in_metacorpus(metacorpora)
-    # displot_modulation_steps_dist_4_modes(metacorpora)
-    # facetgrid_modulation_steps_by_era(metacorpora)
-    # facetgrid_modulation_steps_with_modes_by_era(metacorpora)
+    plot_key_regions(metacorpora=metacorpora, fig_path="updated_figs/")
