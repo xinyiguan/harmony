@@ -100,18 +100,13 @@ class HarmonyInfo(TabularData):
 
     def modulation_bigrams_list(self) -> List[str]:
         """Returns a list of str representing the modulation bigram. e.g., "f#_IV/V_bIII/V" """
-        globalkey = self.harmony_df['globalkey'][0]
-        localkey_label_seq = self.harmony_df['localkey']
-        localkey_list = self.remove_repeated_labels_occurrences(label_seq=localkey_label_seq)
-        mod_bigrams = util.get_n_grams(sequence=localkey_list, n=2)
+        globalkey = self._df['globalkey'][0]
+        localkey_list = self.get_aspect(key='localkey').get_changes()
+        mod_bigrams = localkey_list.n_grams(n=2)
         mod_bigrams = ["_".join([item[0], item[1]]) for item in mod_bigrams]
         bigrams = [globalkey + '_' + item for item in mod_bigrams]
         return bigrams
 
-    def attribute_df(self, attribute_label_seq: List) -> pd.DataFrame:
-        non_repeated_label_seq = self.remove_repeated_labels_occurrences(label_seq=attribute_label_seq)
-        df = pd.DataFrame(non_repeated_label_seq, columns=['attribute'])
-        return df
 
 
 @dataclass(frozen=True)

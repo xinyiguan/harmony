@@ -1,6 +1,6 @@
 #  By Xinyi Guan on 03 December 2022.
 import os
-from typing import List
+from typing import List, Literal
 
 import pandas as pd
 import seaborn as sns
@@ -61,6 +61,27 @@ def plot_localkey_entropy_by_pieces(metacorpora_path: str, fig_path: str | None,
     return fig
 
 
+def plot_attribute_entropy(data: pd.DataFrame, x: str, y: str, hue: str, hue_order: str,
+                           plot_type: Literal['scatter'],
+                           fig_name: str | None, fig_path: str | None,
+                           title: str | None,
+                           savefig: bool = True) -> plt.Figure:
+    """Assume data has cols: year, corpus, """
 
-def assemble_corpus_localkey_entropy_df(metacorpora_path: str):
-    pass
+    fig, ax = plt.subplots(figsize=(16, 12))
+    if plot_type == 'scatter':
+        sns.scatterplot(data=data, x=x, y=y, hue=hue, hue_order=hue_order)
+        sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+    else:
+        raise NotImplementedError
+
+    plt.title(title)
+    if savefig:
+        if fig_path is None:
+            fig_path = '../information-theoretic-quantity-figs/'
+        if not os.path.exists(fig_path):
+            os.makedirs(fig_path)
+
+        plt.savefig(fname=fig_path + fig_name + '.jpeg', dpi=200, format='jpeg')
+        print(f'plot saved to {fig_path}{fig_name}.jpeg')
+    return fig
