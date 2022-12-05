@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+from scipy.stats import entropy
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from functools import cached_property
@@ -8,7 +9,7 @@ from typing import List, Optional, Literal
 import numpy as np
 import pandas as pd
 
-import util
+import harmony.util as util
 from harmony.representation import Key, Numeral
 
 
@@ -48,9 +49,11 @@ class SequentialData(ABC):
             return transition_prob
         return transition_matrix
 
-    def unique_labels(self, label_seq: List) -> List:
-        unique_labels = list(set(label_seq))
-        return unique_labels
+    def unique_labels(self) -> SequentialData:
+        unique_labels = self._series.unique()
+        series = pd.Series(unique_labels)
+        sequential_data = SequentialData.from_pd_series(series)
+        return sequential_data
 
     def get_changes(self) -> SequentialData:
         """Transform label seq [A, A, A, B, C, C, A, C, C, C] --->  [A, B, C, A, C]"""
@@ -65,23 +68,29 @@ class SequentialData(ABC):
         value_count = pd.value_counts(self._series)
         return value_count
 
+    def mean(self) -> float:
+        return self._series.mean()
+
     def probability(self) -> pd.Series:
         count = self.count()
         prob = count / count.sum()
         return prob
 
-    def distribution_entropy(self) -> float:
-        mean_entropy = self.event_entropy().mean()
-        return mean_entropy
+    def entropy(self) -> float:
+        """
+        The Shannon entropy (information entropy), the expected/average surprisal based on its probability distribution.
+        """
+        # mean_entropy = self.event_entropy().mean()
+        p = self.probability()
+        distr_entropy = entropy(p, base=2)
+        return distr_entropy
 
-    def event_entropy(self) -> pd.Series:
-        event_entropy = self.probability()
-        array = -np.log(event_entropy)
-        series = pd.Series(data=array, name='event_entropy')
+    def surprisal(self) -> pd.Series:
+        """The self entropy, information content, surprisal"""
+        probs = self.probability()
+        self_entropy = -np.log(probs)
+        series = pd.Series(data=self_entropy, name='surprisal')
         return series
-
-    def information_content(self):
-        raise NotImplementedError
 
 
 # _____________________________ AspectInfo ______________________________________
@@ -137,21 +146,28 @@ class KeyInfo(TabularData):
 
 # _____________________________ LevelInfo ______________________________________
 
+
 @dataclass
-class PieceMetaInfo:
-    corpus_name: str
-    piece_name: str
-    composed_start: int
-    composed_end: int
-    composer: str
-    annotated_key: str
+class PieceMetaData:
+    corpus_name: SequentialData
+    piece_name: SequentialData
+    composed_start: SequentialData
+    composed_end: SequentialData
+    composer: SequentialData
+    annotated_key: SequentialData
     label_count: int | None
+    piece_length: int
+
+    def to_SequentialData(self, attribute) -> SequentialData:
+        series = pd.Series([attribute] * self.piece_length)
+        sequential_data = SequentialData.from_pd_series(series)
+        return sequential_data
 
 
 @dataclass
 class PieceInfo:
     # containing the data for a single piece
-    meta_info: PieceMetaInfo
+    meta_info: PieceMetaData
     harmony_info: HarmonyInfo
     measure_info: MeasureInfo
     note_info: NoteInfo
@@ -165,26 +181,12 @@ class PieceInfo:
 
         corpus_name: str = parent_corpus_path.split(os.sep)[-2]
         metadata_tsv_df: pd.DataFrame = pd.read_csv(parent_corpus_path + 'metadata.tsv', sep='\t')
-        annotated_key: str = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['annotated_key'].values[0]
-        composer: str = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composer'].values[0]
-        composed_start = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composed_start'].values[0]
-        composed_end = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composed_end'].values[0]
-        label_count = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['label_count'].values[0]
-
-        meta_info = PieceMetaInfo(
-            corpus_name=corpus_name,
-            piece_name=piece_name,
-            composed_start=composed_start,
-            composed_end=composed_end,
-            composer=composer,
-            annotated_key=annotated_key,
-            label_count=label_count)
 
         try:
             harmonies_df: pd.DataFrame = pd.read_csv(parent_corpus_path + 'harmonies/' + piece_name + '.tsv', sep='\t')
             measure_df: pd.DataFrame = pd.read_csv(parent_corpus_path + 'measures/' + piece_name + '.tsv', sep='\t')
             note_df: pd.DataFrame = pd.read_csv(parent_corpus_path + 'notes/' + piece_name + '.tsv', sep='\t')
-        except:
+        except Exception:
             raise Warning('piece does not have all the required .tsv files in this corpus')
 
         harmony_info = HarmonyInfo.from_pd_df(df=harmonies_df)
@@ -193,6 +195,34 @@ class PieceInfo:
 
         key_df: pd.DataFrame = harmony_info._df[['globalkey', 'localkey']]
         key_info = KeyInfo.from_pd_df(df=key_df)
+
+        piece_length = harmonies_df.shape[0]
+
+        piece_name_SeqData: SequentialData = SequentialData.from_pd_series(pd.Series([piece_name] * piece_length))
+        corpus_name_SeqData: SequentialData = SequentialData.from_pd_series(pd.Series([corpus_name] * piece_length))
+
+        annotated_key: str = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['annotated_key'].values[0]
+        annotated_key_SeqData = SequentialData.from_pd_series(pd.Series([annotated_key] * piece_length))
+
+        composed_start: int = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composed_start'].values[0]
+        composed_start_SeqData: SequentialData = SequentialData.from_pd_series(
+            pd.Series([composed_start] * piece_length))
+
+        composed_end: int = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composed_end'].values[0]
+        composed_end_SeqData: SequentialData = SequentialData.from_pd_series(pd.Series([composed_end] * piece_length))
+
+        composer: SequentialData = SequentialData.from_pd_series(pd.Series([corpus_name.split('_')[0]] * piece_length))
+        label_count = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['label_count'].values[0]
+
+        meta_info = PieceMetaData(
+            corpus_name=corpus_name_SeqData,
+            piece_name=piece_name_SeqData,
+            composed_start=composed_start_SeqData,
+            composed_end=composed_end_SeqData,
+            composer=composer,
+            annotated_key=annotated_key_SeqData,
+            label_count=label_count,
+            piece_length=piece_length)
 
         instance = cls(
             meta_info=meta_info,
@@ -212,52 +242,100 @@ class PieceInfo:
 
 
 @dataclass
-class CorpusMetaInfo:
-    corpus_name: str
-    composer: str
-    piecename_list: List[str]
+class CorpusMetaData:
+    corpus_name: SequentialData
+    composer: SequentialData
+    composed_start: SequentialData
+    composed_end: SequentialData
+    annotated_key: SequentialData
+    piecename_list: List[str]  # don't count pieces with label_count=0
+    pieceinfo_list: List[PieceInfo]  # don't count pieces with label_count=0
 
 
 @dataclass
 class CorpusInfo:
     # containing data for a single corpus
-    meta_info: CorpusMetaInfo
-    pieceinfo_list: List[PieceInfo]
-
-    def __post_init__(self):
-        self.annotated_pieceinfo_list = self.annotated_pieces()
+    meta_info: CorpusMetaData
+    harmony_info: HarmonyInfo
+    measure_info: MeasureInfo
+    note_info: NoteInfo
+    key_info: KeyInfo
 
     @classmethod
     def from_directory(cls, corpus_path: str) -> CorpusInfo:
+        """Assemble all required args for CorpusInfo class"""
         corpus_name: str = corpus_path.split(os.sep)[-2]
         metadata_tsv_df: pd.DataFrame = pd.read_csv(corpus_path + 'metadata.tsv', sep='\t')
-        piecename_list = metadata_tsv_df['fnames'].tolist()
 
+        # don't count pieces with label_count=0, harmony_version=0.0.0
+        piecename_list = metadata_tsv_df.loc[metadata_tsv_df['label_count'] != 0]['fnames']
         pieceinfo_list = [PieceInfo.from_directory(parent_corpus_path=corpus_path, piece_name=item) for item in
                           piecename_list]
-        meta_info = CorpusMetaInfo(
-            corpus_name=corpus_name,
-            composer=metadata_tsv_df['composer'].tolist()[0],
-            piecename_list=piecename_list)
 
-        instance = cls(meta_info=meta_info, pieceinfo_list=pieceinfo_list)
+        try:
+            harmonies_df: pd.DataFrame = pd.concat([item.harmony_info._df for item in pieceinfo_list])
+            measure_df: pd.DataFrame = pd.concat([item.measure_info._df for item in pieceinfo_list])
+            note_df: pd.DataFrame = pd.concat([item.note_info._df for item in pieceinfo_list])
+        except:
+            raise Warning('piece does not have all the required .tsv files in this corpus')
+
+        harmony_info = HarmonyInfo.from_pd_df(df=harmonies_df)
+        measure_info = MeasureInfo.from_pd_df(df=measure_df)
+        note_info = NoteInfo.from_pd_df(df=note_df)
+
+        key_df: pd.DataFrame = harmony_info._df[['globalkey', 'localkey']]
+        key_info = KeyInfo.from_pd_df(df=key_df)
+
+        concat_composed_start_series = pd.concat([item.meta_info.composed_start._series for item in pieceinfo_list])
+        composed_start_SeqData = SequentialData.from_pd_series(series=concat_composed_start_series)
+
+        concat_composed_end_series = pd.concat([item.meta_info.composed_end._series for item in pieceinfo_list])
+        composed_end_SeqData = SequentialData.from_pd_series(series=concat_composed_end_series)
+
+        corpusname_SeqData = SequentialData.from_pd_series(
+            series=pd.concat([item.meta_info.corpus_name._series for item in pieceinfo_list]))
+        composer_SeqData = SequentialData.from_pd_series(
+            series=pd.concat([item.meta_info.composer._series for item in pieceinfo_list]))
+
+        annotated_key_SeqData = SequentialData.from_pd_series(
+            series=pd.concat([item.meta_info.annotated_key._series for item in pieceinfo_list]))
+
+        meta_info = CorpusMetaData(
+            corpus_name=corpusname_SeqData,
+            composer=composer_SeqData,
+            composed_start=composed_start_SeqData,
+            composed_end=composed_end_SeqData,
+            piecename_list=piecename_list,
+            pieceinfo_list=pieceinfo_list,
+            annotated_key=annotated_key_SeqData)
+
+        instance = cls(meta_info=meta_info,
+                       harmony_info=harmony_info,
+                       measure_info=measure_info,
+                       note_info=note_info,
+                       key_info=key_info)
         return instance
-
-    def annotated_pieces(self) -> List[PieceInfo]:
-        annotated_pieces = [item for item in self.pieceinfo_list if item.annotated]
-        return annotated_pieces
 
 
 @dataclass
-class MetaCorporaMetaInfo:
+class MetaCorporaMetaData:
+    corpora_names: SequentialData
+    composer: SequentialData
+    composed_start: SequentialData
+    composed_end: SequentialData
+    annotated_key: SequentialData
     corpusname_list: List[str]
+    corpusinfo_list: List[CorpusInfo]
 
 
 @dataclass
 class MetaCorporaInfo:
     # containing data for a collection corpora
-    meta_info: MetaCorporaMetaInfo
-    corpusinfo_list: List[CorpusInfo]
+    meta_info: MetaCorporaMetaData
+    harmony_info: HarmonyInfo
+    measure_info: MeasureInfo
+    note_info: NoteInfo
+    key_info: KeyInfo
 
     @classmethod
     def from_directory(cls, metacorpora_path: str) -> MetaCorporaInfo:
@@ -265,14 +343,59 @@ class MetaCorporaInfo:
                                   if not f.startswith('.')
                                   if not f.startswith('__')])
 
-        meta_info = MetaCorporaMetaInfo(corpusname_list=corpusname_list)
-
         corpusinfo_list = [CorpusInfo.from_directory(corpus_path=metacorpora_path + item + '/') for item in
                            corpusname_list]
 
-        instance = cls(meta_info=meta_info, corpusinfo_list=corpusinfo_list)
+        # metadata_tsv_df: pd.DataFrame = pd.concat(
+        #     [pd.read_csv(metacorpora_path + item + '/metadata.tsv', sep='\t') for item in corpusname_list])
+
+        try:
+            harmonies_df: pd.DataFrame = pd.concat([item.harmony_info._df for item in corpusinfo_list])
+            measure_df: pd.DataFrame = pd.concat([item.measure_info._df for item in corpusinfo_list])
+            note_df: pd.DataFrame = pd.concat([item.note_info._df for item in corpusinfo_list])
+        except:
+            raise Warning('Corpus does not have all the required .tsv files in this corpus')
+
+        harmony_info = HarmonyInfo.from_pd_df(df=harmonies_df)
+        measure_info = MeasureInfo.from_pd_df(df=measure_df)
+        note_info = NoteInfo.from_pd_df(df=note_df)
+
+        key_df: pd.DataFrame = harmony_info._df[['globalkey', 'localkey']]
+        key_info = KeyInfo.from_pd_df(df=key_df)
+
+        concat_composed_start_series = pd.concat([item.meta_info.composed_start._series for item in corpusinfo_list])
+        composed_start_SeqData = SequentialData.from_pd_series(series=concat_composed_start_series)
+
+        concat_composed_end_series = pd.concat([item.meta_info.composed_end._series for item in corpusinfo_list])
+        composed_end_SeqData = SequentialData.from_pd_series(series=concat_composed_end_series)
+
+        corporaname_SeqData = SequentialData.from_pd_series(
+            series=pd.concat([item.meta_info.corpus_name._series for item in corpusinfo_list]))
+        composer_SeqData = SequentialData.from_pd_series(
+            series=pd.concat([item.meta_info.composer._series for item in corpusinfo_list]))
+
+        annotated_key_SeqData = SequentialData.from_pd_series(
+            series=pd.concat([item.meta_info.annotated_key._series for item in corpusinfo_list]))
+
+        meta_info = MetaCorporaMetaData(corpora_names=corporaname_SeqData,
+                                        composer=composer_SeqData,
+                                        composed_start=composed_start_SeqData,
+                                        composed_end=composed_end_SeqData,
+                                        annotated_key=annotated_key_SeqData,
+                                        corpusname_list=corpusname_list,
+                                        corpusinfo_list=corpusinfo_list)
+
+        instance = cls(meta_info=meta_info,
+                       harmony_info=harmony_info,
+                       measure_info=measure_info,
+                       note_info=note_info,
+                       key_info=key_info)
         return instance
 
 
 if __name__ == '__main__':
-    corpus_info = CorpusInfo.from_directory(corpus_path='../romantic_piano_corpus/debussy_suite_bergamasque/')
+    metacorpora = MetaCorporaInfo.from_directory(metacorpora_path='../romantic_piano_corpus/')
+    # corpus = CorpusInfo.from_directory(corpus_path='../romantic_piano_corpus/debussy_suite_bergamasque/')
+    # piece=PieceInfo.from_directory(parent_corpus_path='../romantic_piano_corpus/debussy_suite_bergamasque/',
+    #                                piece_name='l075-01_suite_prelude')
+    print(metacorpora.meta_info.composed_end)
