@@ -61,24 +61,35 @@ def plot_localkey_entropy_by_pieces(metacorpora_path: str, fig_path: str | None,
     return fig
 
 
-def plot_attribute_entropy(data: pd.DataFrame, x: str, y: str, hue: str, hue_order: str,
-                           plot_type: Literal['scatter'],
+def plot_attribute_entropy(data: pd.DataFrame, x: str, y: str, hue: str | None, hue_order: List[str] | None,
+                           plot_type: Literal['scatter', 'lmplot'],
                            fig_name: str | None, fig_path: str | None,
                            title: str | None,
+                           s: float = 8,
+                           alpha: float | None = None,
+                           figsize: tuple = (15, 12),
                            savefig: bool = True) -> plt.Figure:
     """Assume data has cols: year, corpus, """
 
-    fig, ax = plt.subplots(figsize=(16, 12))
+    fig, ax = plt.subplots(figsize=figsize)
     if plot_type == 'scatter':
-        sns.scatterplot(data=data, x=x, y=y, hue=hue, hue_order=hue_order)
-        sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+        sns.scatterplot(data=data, x=x, y=y, hue=hue, hue_order=hue_order, s=s, alpha=alpha)
+        if hue is not None:
+            sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1), frameon=False)
+        else:
+            pass
+
+    elif plot_type == 'lmplot':
+        sns.lmplot(data=data, x=x, y=y, hue=hue, hue_order=hue_order)
+
     else:
         raise NotImplementedError
 
     plt.title(title)
+    plt.tight_layout()
     if savefig:
         if fig_path is None:
-            fig_path = '../information-theoretic-quantity-figs/'
+            fig_path = 'information-theoretic-quantity-figs/'
         if not os.path.exists(fig_path):
             os.makedirs(fig_path)
 

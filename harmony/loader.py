@@ -63,6 +63,9 @@ class SequentialData(ABC):
         sequential_data = SequentialData.from_pd_series(series)
         return sequential_data
 
+    def len(self):
+        return self._series.shape[0]
+
     def count(self):
         """Count the occurrences of objects in the sequence"""
         value_count = pd.value_counts(self._series)
@@ -106,7 +109,6 @@ class HarmonyInfo(TabularData):
         mod_bigrams = ["_".join([item[0], item[1]]) for item in mod_bigrams]
         bigrams = [globalkey + '_' + item for item in mod_bigrams]
         return bigrams
-
 
 
 @dataclass(frozen=True)
@@ -153,10 +155,31 @@ class PieceMetaData:
     label_count: int | None
     piece_length: int
 
-    def to_SequentialData(self, attribute) -> SequentialData:
-        series = pd.Series([attribute] * self.piece_length)
-        sequential_data = SequentialData.from_pd_series(series)
-        return sequential_data
+    def era(self) -> str:
+        era = util.determine_era_based_on_year(year=self.composed_end)
+        return era
+
+
+@dataclass
+class CorpusMetaData:
+    corpus_name: SequentialData
+    composer: SequentialData
+    composed_start: SequentialData
+    composed_end: SequentialData
+    annotated_key: SequentialData
+    piecename_list: List[str]  # don't count pieces with label_count=0
+    pieceinfo_list: List[PieceInfo]  # don't count pieces with label_count=0
+
+
+@dataclass
+class MetaCorporaMetaData:
+    corpora_names: SequentialData
+    composer: SequentialData
+    composed_start: SequentialData
+    composed_end: SequentialData
+    annotated_key: SequentialData
+    corpusname_list: List[str]
+    corpusinfo_list: List[CorpusInfo]
 
 
 @dataclass
@@ -237,17 +260,6 @@ class PieceInfo:
 
 
 @dataclass
-class CorpusMetaData:
-    corpus_name: SequentialData
-    composer: SequentialData
-    composed_start: SequentialData
-    composed_end: SequentialData
-    annotated_key: SequentialData
-    piecename_list: List[str]  # don't count pieces with label_count=0
-    pieceinfo_list: List[PieceInfo]  # don't count pieces with label_count=0
-
-
-@dataclass
 class CorpusInfo:
     # containing data for a single corpus
     meta_info: CorpusMetaData
@@ -262,7 +274,7 @@ class CorpusInfo:
         corpus_name: str = corpus_path.split(os.sep)[-2]
         metadata_tsv_df: pd.DataFrame = pd.read_csv(corpus_path + 'metadata.tsv', sep='\t')
 
-        # don't count pieces with label_count=0, harmony_version=0.0.0
+        # don't count pieces with label_count=0
         piecename_list = metadata_tsv_df.loc[metadata_tsv_df['label_count'] != 0]['fnames']
         pieceinfo_list = [PieceInfo.from_directory(parent_corpus_path=corpus_path, piece_name=item) for item in
                           piecename_list]
@@ -311,16 +323,8 @@ class CorpusInfo:
                        key_info=key_info)
         return instance
 
-
-@dataclass
-class MetaCorporaMetaData:
-    corpora_names: SequentialData
-    composer: SequentialData
-    composed_start: SequentialData
-    composed_end: SequentialData
-    annotated_key: SequentialData
-    corpusname_list: List[str]
-    corpusinfo_list: List[CorpusInfo]
+    def get_pieceinfo_list(self) -> List[PieceInfo]:
+        raise NotImplementedError
 
 
 @dataclass
@@ -340,9 +344,6 @@ class MetaCorporaInfo:
 
         corpusinfo_list = [CorpusInfo.from_directory(corpus_path=metacorpora_path + item + '/') for item in
                            corpusname_list]
-
-        # metadata_tsv_df: pd.DataFrame = pd.concat(
-        #     [pd.read_csv(metacorpora_path + item + '/metadata.tsv', sep='\t') for item in corpusname_list])
 
         try:
             harmonies_df: pd.DataFrame = pd.concat([item.harmony_info._df for item in corpusinfo_list])
