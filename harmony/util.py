@@ -49,6 +49,19 @@ def determine_era_based_on_year(year) -> str:
     elif 1819 < year < 1931:
         return 'Romantic'
 
+def flatten(possiblyNestedList):
+    # Flatten abritrarily nested list
+    if not isinstance(possiblyNestedList, list):
+        return
+    flattened = []
+    for item in possiblyNestedList:
+        if isinstance(item, list):
+            flattened.extend(flatten(item))
+        else:
+            flattened.append(item)
+    return flattened
+
+
 
 MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major', 'E': 'major', 'F': 'major',
                          'G': 'major',
