@@ -1,17 +1,17 @@
 #  By Xinyi Guan on 25 November 2022.
-from typing import List
+from typing import List, Sequence
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
 
 # ===================================
-# n-gram                            |
+# generic n-gram                     |
 # ===================================
 
-def get_n_grams(sequence: List[object], n: int) -> np.ndarray:
+def get_n_grams(sequence: Sequence[object], n: int) -> np.ndarray:
     """
-    Transform a list of string to a list of n-grams.
+    Transform a sequence (list of objs) to a list of n-grams.
     :param sequence:
     :param n:
     :return:
@@ -49,17 +49,6 @@ def determine_era_based_on_year(year) -> str:
     elif 1819 < year < 1931:
         return 'Romantic'
 
-def flatten(possiblyNestedList):
-    # Flatten abritrarily nested list
-    if not isinstance(possiblyNestedList, list):
-        return
-    flattened = []
-    for item in possiblyNestedList:
-        if isinstance(item, list):
-            flattened.extend(flatten(item))
-        else:
-            flattened.append(item)
-    return flattened
 
 
 
@@ -76,6 +65,7 @@ MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major',
                          'ab': 'minor', 'bb': 'minor', 'cb': 'minor', 'db': 'minor', 'eb': 'minor',
                          'fb': 'minor', 'gb': 'minor'}
 
+
 # ===================================
 # seaborn plot                          |
 # ===================================
@@ -83,14 +73,16 @@ MAJOR_MINOR_KEYS_Dict = {'A': 'major', 'B': 'major', 'C': 'major', 'D': 'major',
 def set_palette_6():
     sns.set()
     sns.set_style("white")
-    platte=sns.set_palette(sns.color_palette(["#046586",
-                                       "#28A91A",
-                                       "#C9A77C",
-                                       "#F4A016",
-                                       "#F6BBC6",
-                                       "#E71F19"]))
+    platte = sns.set_palette(sns.color_palette(["#046586",
+                                                "#28A91A",
+                                                "#C9A77C",
+                                                "#F4A016",
+                                                "#F6BBC6",
+                                                "#E71F19"]))
 
     return platte
+
+
 def set_plot_style_palette_4():
     sns.set()
     sns.set_style("white")
@@ -103,18 +95,18 @@ def set_plot_style_palette_4():
 def set_platte_10():
     sns.set()
     sns.set_style("white")
-    platte=sns.set_palette(sns.color_palette(["#255459",
-                                       "#4D8C8C",
-                                       "#BFAA3F",
-                                       "#FFB419",
-                                       "#BF491F",
-                                              
-                                       "#BF847E",
-                                       "#F2AF88",
-                                       "#F2E3B6",
-                                       "#0F4459",
-                                       "#141A26",
-                                       ]))
+    platte = sns.set_palette(sns.color_palette(["#255459",
+                                                "#4D8C8C",
+                                                "#BFAA3F",
+                                                "#FFB419",
+                                                "#BF491F",
+
+                                                "#BF847E",
+                                                "#F2AF88",
+                                                "#F2E3B6",
+                                                "#0F4459",
+                                                "#141A26",
+                                                ]))
     return platte
 
 
