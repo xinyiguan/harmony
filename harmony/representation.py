@@ -250,7 +250,7 @@ class Progression:
 
 
 if __name__ == '__main__':
-    single_numeral = SingleNumeral.parse(key_str="C", numeral_str="biii")
+    single_numeral = SingleNumeral.parse(key_str="c", numeral_str="bIII")
     print(single_numeral.key_if_tonicized())
     result = single_numeral.key_if_tonicized().to_str()
 

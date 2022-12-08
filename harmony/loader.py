@@ -4,7 +4,7 @@ from scipy.stats import entropy
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Callable
 
 import numpy as np
 import pandas as pd
@@ -101,6 +101,19 @@ class SequentialData(ABC):
 @dataclass(frozen=True)
 class HarmonyInfo(TabularData):
 
+    def chord_ngrams(self, n: int) -> np.ndarray:
+        # to ensure chord bigrams taken from the same local key segment within a piece
+        # assume we are in the PieceInfo
+
+        self._df['group'] = self._df['localkey'].ne(self._df['localkey'].shift()).cumsum()
+        df = self._df.groupby('group')
+        dfs = []
+        for name, data in df:
+            data = TabularData.from_pd_df(df=data)
+            dfs.append(data)
+        chord_ngrams = np.array([segement_df.get_aspect(key='chord').n_grams(n=n) for segement_df in dfs])
+        return chord_ngrams
+
     def modulation_bigrams_list(self) -> List[str]:
         """Returns a list of str representing the modulation bigram. e.g., "f#_IV/V_bIII/V" """
         globalkey = self._df['globalkey'][0]
@@ -131,7 +144,10 @@ class KeyInfo(TabularData):
     @cached_property
     def global_key(self) -> Key:
         key_str = self._df['globalkey'][0]
-        key = Key.parse(key_str=key_str)
+        if not isinstance(key_str, str):
+            key = 'NA'
+        else:
+            key = Key.parse(key_str=key_str)
         return key
 
     @cached_property
@@ -146,6 +162,7 @@ class KeyInfo(TabularData):
 
 @dataclass
 class PieceMetaData:
+    corpus_path: str
     corpus_name: SequentialData
     piece_name: SequentialData
     composed_start: SequentialData
@@ -156,7 +173,7 @@ class PieceMetaData:
     piece_length: int
 
     def era(self) -> str:
-        era = util.determine_era_based_on_year(year=self.composed_end)
+        era = util.determine_era_based_on_year(year=self.composed_end._series[0])
         return era
 
 
@@ -233,6 +250,7 @@ class PieceInfo:
         label_count = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['label_count'].values[0]
 
         meta_info = PieceMetaData(
+            corpus_path=parent_corpus_path,
             corpus_name=corpus_name_SeqData,
             piece_name=piece_name_SeqData,
             composed_start=composed_start_SeqData,
@@ -260,13 +278,24 @@ class PieceInfo:
 
 
 @dataclass
-class CorpusInfo:
+class BaseCorpusInfo(ABC):
+    @abstractmethod
+    def filter_pieces_by_condition(self, condition: Callable[[PieceInfo, ], bool]) -> List[PieceInfo]:
+        pass
+
+
+@dataclass
+class CorpusInfo(BaseCorpusInfo):
     # containing data for a single corpus
     meta_info: CorpusMetaData
     harmony_info: HarmonyInfo
     measure_info: MeasureInfo
     note_info: NoteInfo
     key_info: KeyInfo
+
+    def filter_pieces_by_condition(self, condition: Callable[[PieceInfo, ], bool]) -> List[PieceInfo]:
+        filtered_pieces = [pieceinfo for pieceinfo in self.meta_info.pieceinfo_list if condition(pieceinfo)]
+        return filtered_pieces
 
     @classmethod
     def from_directory(cls, corpus_path: str) -> CorpusInfo:
@@ -323,18 +352,20 @@ class CorpusInfo:
                        key_info=key_info)
         return instance
 
-    def get_pieceinfo_list(self) -> List[PieceInfo]:
-        raise NotImplementedError
-
 
 @dataclass
-class MetaCorporaInfo:
+class MetaCorporaInfo(BaseCorpusInfo):
     # containing data for a collection corpora
     meta_info: MetaCorporaMetaData
     harmony_info: HarmonyInfo
     measure_info: MeasureInfo
     note_info: NoteInfo
     key_info: KeyInfo
+
+    def filter_pieces_by_condition(self, condition: Callable[[PieceInfo, ], bool]) -> List[PieceInfo]:
+        filtered_pieces = sum([corpusinfo.filter_pieces_by_condition(condition=condition) for corpusinfo in
+                               self.meta_info.corpusinfo_list], [])
+        return filtered_pieces
 
     @classmethod
     def from_directory(cls, metacorpora_path: str) -> MetaCorporaInfo:
@@ -391,7 +422,14 @@ class MetaCorporaInfo:
 
 if __name__ == '__main__':
     metacorpora = MetaCorporaInfo.from_directory(metacorpora_path='../romantic_piano_corpus/')
-    # corpus = CorpusInfo.from_directory(corpus_path='../romantic_piano_corpus/debussy_suite_bergamasque/')
-    # piece=PieceInfo.from_directory(parent_corpus_path='../romantic_piano_corpus/debussy_suite_bergamasque/',
-    #                                piece_name='l075-01_suite_prelude')
-    print(metacorpora.meta_info.composed_end)
+    piece_operation = lambda pieceinfo: pieceinfo.harmony_info.chord_ngrams(2)
+
+    # define piece grouping
+    eras = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
+    era_condition = lambda era: (lambda pieceinfo: pieceinfo.meta_info.era() == era)
+
+    # automation
+    transition_dict = {era: [piece_operation(piece) for piece in
+                             metacorpora.filter_pieces_by_condition(era_condition(era))] for era in eras}
+
+    print(transition_dict)
