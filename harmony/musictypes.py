@@ -1,11 +1,14 @@
 # Created by Xinyi Guan in 2022.
 from __future__ import annotations
+
+import typing
 from dataclasses import dataclass
 import re
-from typing import Literal, List
+from typing import Literal, List, Set
 
 import pandas as pd
 from pitchtypes import SpelledPitchClass, SpelledIntervalClass
+from pitchtypes import Pitch as AbtractPitch
 
 
 @dataclass
@@ -50,6 +53,11 @@ class Key:
         else:
             raise ValueError(f'not applicable mode')
         return resulting_str
+
+
+@dataclass
+class BaseHarmony:
+    tones: Set[AbtractPitch]
 
 
 @dataclass
@@ -167,6 +175,50 @@ class Numeral:
         """
         Applied chords are converted into Roman numerals relative to the key, e.g. V/V becomes II
         """
+        raise NotImplementedError
+
+
+@dataclass
+class TonalHarmony:
+    globalkey: Key
+    localkey: Numeral
+    chord_str: str
+
+    _figurebass_regex = re.compile("^(?P<figbass>(7 | 65 | 43 | 42 | 2 | 64 | 6))$")
+
+    @classmethod
+    def parse(cls, globalkey_str: str, localkey_str: str, chord_str: str) -> typing.Self:
+        # chord_str examples: "IV(+6)", "vii%7/IV", "ii64"
+        if not isinstance(globalkey_str, str):
+            raise TypeError(f"expected string as input, got {globalkey_str}")
+        if not isinstance(localkey_str, str):
+            raise TypeError(f"expected string as input, got {localkey_str}")
+        if not isinstance(chord_str, str):
+            raise TypeError(f"expected string as input, got {chord_str}")
+
+        globalkey = Key.parse(key_str=globalkey_str)
+        localkey = Numeral.parse(key_str=globalkey_str, numeral_str=localkey_str)
+
+        instance = cls(globalkey=globalkey, localkey=localkey, chord_str=chord_str)
+        return instance
+
+    def key_if_tonicized(self) -> Key:
+        raise NotImplementedError
+
+    def pc_set(self) -> Set[SpelledPitchClass]:
+        pitchclass = self.chord_tones() | self.added_tones()
+        return pitchclass
+
+    def to_numeral(self) -> Numeral:
+        raise NotImplementedError
+
+    def chord_tones(self) -> Set[SpelledPitchClass]:
+        raise NotImplementedError
+
+    def added_tones(self) -> Set[SpelledPitchClass]:
+        raise NotImplementedError
+
+    def root(self) -> SpelledPitchClass:
         raise NotImplementedError
 
 

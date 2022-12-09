@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 from harmony import util
 from harmony.loader import MetaCorporaInfo, SequentialData
-from harmony.representation import Key, Numeral, ModulationBigram
+from harmony.musictypes import Key, Numeral, ModulationBigram
 from pitchtypes import *
 
 

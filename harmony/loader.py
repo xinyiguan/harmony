@@ -10,7 +10,8 @@ import numpy as np
 import pandas as pd
 
 import harmony.util as util
-from harmony.representation import Key, Numeral
+from harmony.musictypes import Key, Numeral, TonalHarmony
+from harmony.generics import Sequential
 
 
 @dataclass(frozen=True)
@@ -36,18 +37,6 @@ class SequentialData(ABC):
     def from_pd_series(cls, series: pd.Series):
         instance = cls(_series=series)
         return instance
-
-    def n_grams(self, n: int) -> np.ndarray:
-        n_grams = util.get_n_grams(sequence=self._series, n=n)
-        return n_grams
-
-    def transition_matrix(self, n: int = 2, probability: bool = True) -> pd.DataFrame:
-        n_grams = self.n_grams(n=n)
-        transition_matrix = util.get_transition_matrix(n_grams=n_grams)
-        if probability:
-            transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
-            return transition_prob
-        return transition_matrix
 
     def unique_labels(self) -> SequentialData:
         unique_labels = self._series.unique()
@@ -100,19 +89,6 @@ class SequentialData(ABC):
 
 @dataclass(frozen=True)
 class HarmonyInfo(TabularData):
-
-    def chord_ngrams(self, n: int) -> np.ndarray:
-        # to ensure chord bigrams taken from the same local key segment within a piece
-        # assume we are in the PieceInfo
-
-        self._df['group'] = self._df['localkey'].ne(self._df['localkey'].shift()).cumsum()
-        df = self._df.groupby('group')
-        dfs = []
-        for name, data in df:
-            data = TabularData.from_pd_df(df=data)
-            dfs.append(data)
-        chord_ngrams = np.array([segement_df.get_aspect(key='chord').n_grams(n=n) for segement_df in dfs])
-        return chord_ngrams
 
     def modulation_bigrams_list(self) -> List[str]:
         """Returns a list of str representing the modulation bigram. e.g., "f#_IV/V_bIII/V" """
@@ -276,6 +252,36 @@ class PieceInfo:
         else:
             return False
 
+    def old_chord_ngrams(self, n: int) -> Sequential:
+        """
+        Get the chord n-grams within the same local key segment in a piece.
+        """
+
+        self.harmony_info._df['group'] = self.harmony_info._df['localkey'].ne(
+            self.harmony_info._df['localkey'].shift()).cumsum()
+        df = self.harmony_info._df.groupby('group')
+        dfs = []
+        for name, data in df:
+            data = TabularData.from_pd_df(df=data)
+            dfs.append(data)
+        chord_ngrams = [
+            Sequential.from_sequence(sequence=segement_df.get_aspect(key='chord')._series.tolist()).get_n_grams(n=n) for
+            segement_df in dfs]
+        chord_ngrams = Sequential.from_sequence(sequence=chord_ngrams)
+
+        return chord_ngrams
+
+    def get_tonal_harmony_sequential(self):
+        """Essentially get the "chord" column from the dataframe and transform each chord to a TonalHarmony object. """
+        dropped_nan_df = self.harmony_info._df.dropna(subset=['globalkey', 'localkey', 'chord']).reset_index(drop=True)
+        sequence = [TonalHarmony.parse(globalkey_str=dropped_nan_df['globalkey'][i],
+                                       localkey_str=dropped_nan_df['localkey'][i],
+                                       chord_str=dropped_nan_df['chord'][i])
+                    for i in range(len(dropped_nan_df))]
+
+        tonal_harmony_sequential = Sequential.from_sequence(sequence=sequence)
+        return tonal_harmony_sequential
+
 
 @dataclass
 class BaseCorpusInfo(ABC):
@@ -421,15 +427,22 @@ class MetaCorporaInfo(BaseCorpusInfo):
 
 
 if __name__ == '__main__':
-    metacorpora = MetaCorporaInfo.from_directory(metacorpora_path='../romantic_piano_corpus/')
-    piece_operation = lambda pieceinfo: pieceinfo.harmony_info.chord_ngrams(2)
+    # metacorpora = MetaCorporaInfo.from_directory(metacorpora_path='../romantic_piano_corpus/')
+    # piece_operation = lambda pieceinfo: pieceinfo.harmony_info.chord_ngrams(2)
+    #
+    # # define piece grouping
+    # eras = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
+    # era_condition = lambda era: (lambda pieceinfo: pieceinfo.meta_info.era() == era)
+    #
+    # # automation
+    # transition_dict = {era: [piece_operation(piece) for piece in
+    #                          metacorpora.filter_pieces_by_condition(era_condition(era))] for era in eras}
+    #
+    # print(transition_dict)
 
-    # define piece grouping
-    eras = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
-    era_condition = lambda era: (lambda pieceinfo: pieceinfo.meta_info.era() == era)
+    piece = PieceInfo.from_directory(parent_corpus_path='../petit_dcml_corpus/corelli//',
+                                     piece_name='op01n01a')
 
-    # automation
-    transition_dict = {era: [piece_operation(piece) for piece in
-                             metacorpora.filter_pieces_by_condition(era_condition(era))] for era in eras}
-
-    print(transition_dict)
+    result = piece.harmony_info._df[
+        ['globalkey', 'localkey',
+         'chord']].to_numpy()
