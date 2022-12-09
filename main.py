@@ -4,7 +4,7 @@ import numpy as np
 from harmony.loader import MetaCorporaInfo, CorpusInfo, PieceInfo
 import harmony.util as util
 
-if __name__ == '__main__':
+def get_chord_transitions_by_era():
     # define metacorpora
     metacorpora_path = 'petit_dcml_corpus/'
     metacorpora = MetaCorporaInfo.from_directory(metacorpora_path=metacorpora_path)
@@ -21,4 +21,13 @@ if __name__ == '__main__':
                              metacorpora.filter_pieces_by_condition(era_condition(era))] for era in eras}
 
     print(transition_dict)
+    return transition_dict
 
+
+if __name__ == '__main__':
+    # define metacorpora
+    metacorpora_path = 'petit_dcml_corpus/'
+    metacorpora = MetaCorporaInfo.from_directory(metacorpora_path=metacorpora_path)
+
+    # define piecewise operation
+    piece_operation = lambda pieceinfo: pieceinfo.chord_ngrams(n=2)
