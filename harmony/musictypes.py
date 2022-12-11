@@ -2,16 +2,16 @@
 from __future__ import annotations
 
 import typing
+from abc import ABC
 from dataclasses import dataclass
 import re
 from typing import Literal, List, Set
 
 import pandas as pd
 from pitchtypes import SpelledPitchClass, SpelledIntervalClass
-from pitchtypes import Pitch as AbtractPitch
+from pitchtypes import Pitch as AbstractPitch
 
-
-@dataclass
+@dataclass(frozen=True)
 class Key:
     root: SpelledPitchClass
     mode: Literal['M', 'm']
@@ -55,12 +55,12 @@ class Key:
         return resulting_str
 
 
-@dataclass
+@dataclass(frozen=True)
 class BaseHarmony:
-    tones: Set[AbtractPitch]
+    tones: Set[AbstractPitch]
 
 
-@dataclass
+@dataclass(frozen=True)
 class SingleNumeral:
     key: Key
     numeral_str: str
@@ -128,11 +128,12 @@ class SingleNumeral:
         return key
 
 
-@dataclass
+@dataclass(frozen=True)
 class Numeral:
     key: Key
     L: SingleNumeral
     R: Numeral | None
+    quality: Literal['M', 'm']
 
     @classmethod
     def parse(cls, key_str: str, numeral_str: str) -> Numeral:
@@ -152,7 +153,7 @@ class Numeral:
             L = SingleNumeral.parse(key_str=key_str, numeral_str=numeral_str)
             R = None
 
-        instance = cls(key=key, L=L, R=R)
+        instance = cls(key=key, L=L, R=R, quality=L.quality)
         return instance
 
     def quality(self):
@@ -168,7 +169,7 @@ class Numeral:
         return self.L.root()
 
     def key_if_tonicized(self) -> Key:
-        key_if_tonicized = Key(root=self.root(), mode=self.quality())
+        key_if_tonicized = Key(root=self.root(), mode=self.quality)
         return key_if_tonicized
 
     def applied_chord_to_roman_numeral(self) -> SingleNumeral:
@@ -178,13 +179,16 @@ class Numeral:
         raise NotImplementedError
 
 
-@dataclass
+@dataclass(frozen=True)
 class TonalHarmony:
     globalkey: Key
     localkey: Numeral
     chord_str: str
 
     _figurebass_regex = re.compile("^(?P<figbass>(7 | 65 | 43 | 42 | 2 | 64 | 6))$")
+
+    def __str__(self):
+        return self.chord_str
 
     @classmethod
     def parse(cls, globalkey_str: str, localkey_str: str, chord_str: str) -> typing.Self:
