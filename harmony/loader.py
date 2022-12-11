@@ -148,6 +148,7 @@ class PieceMetaData:
     label_count: int | None
     piece_length: int
 
+    @cached_property
     def era(self) -> str:
         era = util.determine_era_based_on_year(year=self.composed_end._series[0])
         return era
@@ -183,9 +184,6 @@ class PieceInfo:
     measure_info: MeasureInfo
     note_info: NoteInfo
     key_info: KeyInfo
-
-    def __post_init__(self):
-        self.annotated = self.annotated()
 
     @classmethod
     def from_directory(cls, parent_corpus_path: str, piece_name: str) -> PieceInfo:
@@ -245,33 +243,17 @@ class PieceInfo:
         )
         return instance
 
+    @cached_property
     def annotated(self) -> bool:
         label_count = self.meta_info.label_count
-        if label_count is not None:
+        if label_count > 0:
             return True
         else:
             return False
 
-    def old_chord_ngrams(self, n: int) -> Sequential:
-        """
-        Get the chord n-grams within the same local key segment in a piece.
-        """
 
-        self.harmony_info._df['group'] = self.harmony_info._df['localkey'].ne(
-            self.harmony_info._df['localkey'].shift()).cumsum()
-        df = self.harmony_info._df.groupby('group')
-        dfs = []
-        for name, data in df:
-            data = TabularData.from_pd_df(df=data)
-            dfs.append(data)
-        chord_ngrams = [
-            Sequential.from_sequence(sequence=segement_df.get_aspect(key='chord')._series.tolist()).get_n_grams(n=n) for
-            segement_df in dfs]
-        chord_ngrams = Sequential.from_sequence(sequence=chord_ngrams)
-
-        return chord_ngrams
-
-    def get_tonal_harmony_sequential(self):
+    @cached_property
+    def get_tonal_harmony_sequential(self) -> Sequential:
         """Essentially get the "chord" column from the dataframe and transform each chord to a TonalHarmony object. """
         dropped_nan_df = self.harmony_info._df.dropna(subset=['globalkey', 'localkey', 'chord']).reset_index(drop=True)
         sequence = [TonalHarmony.parse(globalkey_str=dropped_nan_df['globalkey'][i],
@@ -309,7 +291,7 @@ class CorpusInfo(BaseCorpusInfo):
         corpus_name: str = corpus_path.split(os.sep)[-2]
         metadata_tsv_df: pd.DataFrame = pd.read_csv(corpus_path + 'metadata.tsv', sep='\t')
 
-        # don't count pieces with label_count=0
+        # don't count pieces with label_count=0, and annotated_key is empty
         piecename_list = metadata_tsv_df.loc[metadata_tsv_df['label_count'] != 0]['fnames']
         pieceinfo_list = [PieceInfo.from_directory(parent_corpus_path=corpus_path, piece_name=item) for item in
                           piecename_list]
@@ -372,6 +354,11 @@ class MetaCorporaInfo(BaseCorpusInfo):
         filtered_pieces = sum([corpusinfo.filter_pieces_by_condition(condition=condition) for corpusinfo in
                                self.meta_info.corpusinfo_list], [])
         return filtered_pieces
+
+    def get_annotated_pieces(self) -> List[PieceInfo]:
+        is_annotated = lambda pieceinfo: pieceinfo.annotated
+        annotated_pieces = self.filter_pieces_by_condition(condition=is_annotated)
+        return annotated_pieces
 
     @classmethod
     def from_directory(cls, metacorpora_path: str) -> MetaCorporaInfo:
