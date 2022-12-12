@@ -1,8 +1,7 @@
 # Created by Xinyi Guan in 2022.
-import numpy as np
 
-from harmony.loader import MetaCorporaInfo, CorpusInfo, PieceInfo
-import harmony.util as util
+from musana.loader import MetaCorporaInfo
+
 
 def get_chord_transitions_by_era():
     # define metacorpora
