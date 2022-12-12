@@ -1,15 +1,14 @@
 # Created by Xinyi Guan in 2022.
-import os
-from typing import Literal, List
+from typing import Literal
 
 import pandas as pd
 import pitchtypes
-from matplotlib import pyplot as plt
 import seaborn as sns
-from harmony import util
-from harmony.loader import MetaCorporaInfo, SequentialData
-from harmony.musictypes import Key, Numeral, ModulationBigram
-from pitchtypes import *
+from matplotlib import pyplot as plt
+
+from musana import util
+from musana.loader import MetaCorporaInfo, SequentialData
+from musana.musictypes import ModulationBigram
 
 
 def assemble_piece_localkey_entropy_df(metacorpora_path: str,
@@ -172,7 +171,7 @@ if __name__ == '__main__':
     #
     plt.title('Surprisal (information content) of modulation steps')
     plt.tight_layout()
-    plt.savefig(fname='information-theoretic-quantity-figs/' + 'era-ms-surprisal.jpeg', dpi=200,
+    plt.savefig(fname='information-theoretic-quantity-figs_new/' + 'era-ms-surprisal.jpeg', dpi=200,
                 format='jpeg')
 
     # # __________________________corpus_full_seq_entropy: violinplot_____________________________
@@ -183,7 +182,7 @@ if __name__ == '__main__':
     # plt.figure(figsize=(12, 6))
     # plt.title('Violin plot of entropy distribution of corpus-wise local key (full samples)')
     # sns.violinplot(data=corpus_full_seq_entropy_data, x="era", y="entropy",order=era_order, palette=palette)
-    # plt.savefig(fname='information-theoretic-quantity-figs/' + 'corpus_full_seq_entropy_violinplot.jpeg', dpi=200, format='jpeg')
+    # plt.savefig(fname='information-theoretic-quantity-figs_new/' + 'corpus_full_seq_entropy_violinplot.jpeg', dpi=200, format='jpeg')
 
     # # __________________________piece_full_seq_entropy: violinplot_____________________________
     #
@@ -193,7 +192,7 @@ if __name__ == '__main__':
     # plt.figure(figsize=(12, 6))
     # plt.title('Violin plot of entropy distribution of piece-wise local key (full samples)')
     # sns.violinplot(data=piece_full_seq_entropy_data, x="era", y="entropy",order=era_order, palette=palette)
-    # plt.savefig(fname='information-theoretic-quantity-figs/' + 'piece_full_seq_entropy_violinplot.jpeg', dpi=200, format='jpeg')
+    # plt.savefig(fname='information-theoretic-quantity-figs_new/' + 'piece_full_seq_entropy_violinplot.jpeg', dpi=200, format='jpeg')
 
     # # __________________________piece_unique_seq_entropy_____________________________
     # piece_unique_seq_entropy_data = assemble_piece_localkey_entropy_df(metacorpora_path=metacorpora_path,
@@ -208,7 +207,7 @@ if __name__ == '__main__':
     # sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1), frameon=False)
     # plt.title('Piece-wise entropy of unique keys')
     # plt.tight_layout()
-    # plt.savefig(fname='information-theoretic-quantity-figs/' + 'piece_unique_seq_entropy_scatter.jpeg', dpi=200,
+    # plt.savefig(fname='information-theoretic-quantity-figs_new/' + 'piece_unique_seq_entropy_scatter.jpeg', dpi=200,
     #             format='jpeg')
 
     # # violin plot:
@@ -217,7 +216,7 @@ if __name__ == '__main__':
     # plt.title('Violin plot of entropy distribution of piece-wise unique local key labels')
     # sns.violinplot(data=piece_unique_seq_entropy_data, x="era", y="entropy", order=era_order, palette=palette)
     # plt.tight_layout()
-    # plt.savefig(fname='information-theoretic-quantity-figs/' + 'piece_unique_seq_entropy_violinplot.jpeg', dpi=200,
+    # plt.savefig(fname='information-theoretic-quantity-figs_new/' + 'piece_unique_seq_entropy_violinplot.jpeg', dpi=200,
     #             format='jpeg')
 
     # # __________________________corpus_unique_seq_entropy_____________________________
@@ -235,7 +234,7 @@ if __name__ == '__main__':
     # sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1), frameon=False)
     # plt.title('Corpus-wise entropy of unique keys')
     # plt.tight_layout()
-    # plt.savefig(fname='information-theoretic-quantity-figs/' + 'corpus_unique_seq_entropy_scatter.jpeg', dpi=200,
+    # plt.savefig(fname='information-theoretic-quantity-figs_new/' + 'corpus_unique_seq_entropy_scatter.jpeg', dpi=200,
     #             format='jpeg')
 
     # # violin plot:
@@ -244,5 +243,5 @@ if __name__ == '__main__':
     # plt.title('Violin plot of entropy distribution of corpus-wise unique local key labels')
     # sns.violinplot(data=corpus_unique_seq_entropy_data, x="era", y="entropy", order=era_order, palette=palette)
     # plt.tight_layout()
-    # plt.savefig(fname='information-theoretic-quantity-figs/' + 'corpus_unique_seq_entropy_violinplot.jpeg', dpi=200,
+    # plt.savefig(fname='information-theoretic-quantity-figs_new/' + 'corpus_unique_seq_entropy_violinplot.jpeg', dpi=200,
     #             format='jpeg')

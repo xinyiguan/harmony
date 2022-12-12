@@ -1,6 +1,6 @@
 import unittest
 
-from harmony.generics import Sequential
+from musana.generics import Sequential
 
 
 class TestGenerics(unittest.TestCase):
