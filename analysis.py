@@ -24,14 +24,6 @@ class ChordTransitionAnalysis:
     def plot_to_folder(self, folder_path: str) -> None:
         eras = ['Renaissance', 'Baroque', 'Classical', 'Romantic']
         dpi = 200
-        # self.plot_chord_transition_in_major_segment().savefig(fname=f'{folder_path}chord_transition_in_major_segment',
-        #                                                       dpi=dpi)
-        # self.plot_chord_transition_in_minor_segment().savefig(fname=f'{folder_path}chord_transition_in_minor_segment',
-        #                                                       dpi=dpi)
-        # self.plot_chord_transition_in_major_segment_by_era(eras=eras).savefig(
-        #     fname=f'{folder_path}chord_transition_in_major_segment_by_era', dpi=dpi)
-        # self.plot_chord_transition_in_minor_segment_by_era(eras=eras).savefig(
-        #     fname=f'{folder_path}chord_transition_in_minor_segment_by_era', dpi=dpi)
 
         self.plot_metacorpora_chord_transitions().savefig(fname=f'{folder_path}metacorpora_chord_transitions', dpi=dpi)
         self.plot_chord_transition_in_by_era(eras=eras).savefig(fname=f'{folder_path}chord_transitions_by_era', dpi=dpi)
@@ -120,11 +112,11 @@ class ChordTransitionAnalysis:
                                                 n: int = 2) -> Sequential:
         harmony_condition = lambda tonal_harmony: tonal_harmony.chord_str != ''
         same_local_key = lambda _tuple: all((x.localkey == _tuple[0].localkey for x in _tuple))
-        in_major_mode = lambda _tuple: all((x.localkey.quality == mode for x in _tuple))
+        in_same_mode = lambda _tuple: all((x.localkey.quality == mode for x in _tuple))
 
         n_gram_condition = lambda x: all((f(x) for f in [
             same_local_key,
-            in_major_mode
+            in_same_mode
         ]))
         tonal_harmony_transitions = self.tonal_harmony_transitions_from_pieceinfos(pieceinfos=pieceinfos,
                                                                                    harmony_condition=harmony_condition,
@@ -159,14 +151,28 @@ class ChordTransitionAnalysis:
 
 
 if __name__ == '__main__':
-    metacorpora_path = 'petit_dcml_corpus/'
+    metacorpora_path = 'romantic_piano_corpus/'
     metacorpora = MetaCorporaInfo.from_directory(metacorpora_path=metacorpora_path)
 
     chord_transition_analysis = ChordTransitionAnalysis(metacorpora=metacorpora)
 
+    # same_local_key = lambda _tuple: all((x.localkey == _tuple[0].localkey for x in _tuple))
+    # in_same_mode = lambda _tuple: all((x.localkey.quality == 'M' for x in _tuple))
+    same_chords = lambda _tuple: _tuple[0]==_tuple[1]
+    # n_gram_condition = lambda x: all((f(x) for f in [
+    #     same_local_key,
+    #     in_same_mode
+    # ]))
+    result = chord_transition_analysis.tonal_harmony_transitions_from_pieceinfos(
+        pieceinfos=metacorpora.get_annotated_pieces(),
+        harmony_condition=lambda x: True,
+        n_gram_condition=same_chords)
+
+    print(result)
+
     # chord_transition_analysis.plot_metacorpora_chord_transitions()
 
-    chord_transition_analysis.plot_to_folder(folder_path='chord_transition_heatmaps/')
+    # chord_transition_analysis.plot_to_folder(folder_path='chord_transition_heatmaps/')
 
     # fig = chord_transition_analysis.plot_chord_distribution()
     # plt.show(dpi=200)

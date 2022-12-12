@@ -1,4 +1,5 @@
 # Created by Xinyi Guan in 2022.
+# Defining the music concepts.
 from __future__ import annotations
 
 import typing
