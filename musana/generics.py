@@ -9,10 +9,16 @@ import pandas as pd
 
 T = typing.TypeVar('T')
 
-
 @dataclass
 class Sequential:
     _seq: typing.Sequence[T]
+
+    def __len__(self):
+        return len(self._seq)
+
+    def __getitem__(self, position_num):
+        if isinstance(position_num, int):
+            return self._seq[position_num]
 
     @classmethod
     def from_sequence(cls, sequence: typing.Sequence[T]) -> typing.Self:
@@ -37,6 +43,11 @@ class Sequential:
     def map(self, operation: typing.Callable[[T, ], typing.Any]) -> Sequential:
         new_seq = list(map(operation, self._seq))
         sequential = Sequential(_seq=new_seq)
+        return sequential
+
+    def filter_by_condition(self, condition: typing.Callable[[T, ], bool]) -> Sequential:
+        sequence = [x for x in self._seq if condition(x)]
+        sequential = self.from_sequence(sequence=sequence)
         return sequential
 
     def get_n_grams(self, n: int) -> Sequential:
@@ -73,15 +84,12 @@ class Sequential:
             return transition_prob
         return transition_matrix
 
-    def filter_by_condition(self, condition: typing.Callable[[T, ], bool]) -> Sequential:
-        sequence = [x for x in self._seq if condition(x)]
-        sequential = self.from_sequence(sequence=sequence)
-        return sequential
+
 
 
 if __name__ == '__main__':
-    pass
-    # test_seq = [1, 1, 1, 2, 2, 3, 4, 5, 6]
-    # sequential = Sequential.from_sequence(sequence=test_seq)
+    test_seq = [1, 1, 1, 2, 2, 3, 4, 5, 6]
+    sequential = Sequential.from_sequence(sequence=test_seq)
     # bigrams = sequential.get_n_grams(n=2)
     # print(bigrams)
+    print(sequential[6])
