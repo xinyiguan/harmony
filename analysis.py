@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from typing import List
 
 import pandas as pd
-import seaborn as sns
 from matplotlib import pyplot as plt
 
-from musana.generics import Sequential
+import musana.generics as generics
 from musana.loader import PieceInfo, MetaCorporaInfo
 from musana.musictypes import TonalHarmony
+import musana.plotting as plotting
 
 
 @dataclass
@@ -50,7 +50,8 @@ class ChordTransitionAnalysis:
             transition_matrix = self.transition_matrix(pieceinfo_list=pieceinfo_list, n=n, mode=mode)
 
             ax.set_title(f'{mode}, shape={transition_matrix.shape}')
-            self.transition_matrix_heatmap(transition_matrix=transition_matrix, ax=ax, cmap=cmap, view_top_n=view_top_n)
+            plotting.transition_matrix_heatmap(transition_matrix=transition_matrix, ax=ax, cmap=cmap,
+                                               view_top_n=view_top_n)
         return fig
 
     def plot_chord_transition_in_by_era_heatmap(self, n: int, eras: List[str], view_top_n: int) -> plt.Figure:
@@ -67,58 +68,32 @@ class ChordTransitionAnalysis:
             transition_matrix = self.transition_matrix(pieceinfo_list=pieceinfo_list, n=n, mode=mode)
 
             ax.set_title(f'{era}, shape={transition_matrix.shape}')
-            self.transition_matrix_heatmap(transition_matrix=transition_matrix, ax=ax, cmap=cmap, view_top_n=view_top_n)
+            plotting.transition_matrix_heatmap(transition_matrix=transition_matrix, ax=ax, cmap=cmap,
+                                               view_top_n=view_top_n)
         return fig
-
-    def transition_matrix_heatmap(self, transition_matrix: pd.DataFrame, ax: plt.Axes, view_top_n: int,
-                                  cmap: str = 'rocket_r') -> None:
-
-        if transition_matrix.size > 0:
-            # view the top n rank chord symbol
-            transition_matrix_to_view = transition_matrix.iloc[:view_top_n, :view_top_n]
-
-            sns.heatmap(data=100 * transition_matrix_to_view, ax=ax, xticklabels=True, yticklabels=True, cmap=cmap,
-                        annot=True, fmt='.1f', annot_kws={'fontsize': 'xx-small'})
-            ax.xaxis.tick_top()
-            ax.tick_params(axis='x', rotation=45)
 
     def transition_matrix(self, pieceinfo_list: List[PieceInfo], n: int,
                           mode: typing.Literal['M', 'm'], probability: bool = True) -> pd.DataFrame:
-        """
-        Get the transition matrix as pd.Dataframe
-        """
+        # Get the tonal harmony transitions in the given mode segment
+        tonal_harmony_transitions = self.get_tonal_harmony_transition_in_mode_segment(pieceinfo_list, mode, n)
 
-        tonal_harmony_transitions = self.get_tonal_harmony_transition_in_mode_segment(
-            pieceinfo_list=pieceinfo_list, mode=mode, n=n)
-
+        # Extract the chord str from the tonal harmony tuple as a sequential of tuples, use '_' to join the parts
         chord_str_transitions = tonal_harmony_transitions.map(
-            operation=lambda _tuple: '-'.join([x.chord_str for x in _tuple]))
+            operation=lambda _tuple: '_'.join([x.chord_str for x in _tuple]))
 
-        sources, targets = zip(*[(ngram.rsplit('-', 1)[0], ngram.rsplit('-', 1)[1])
-                                 for ngram in chord_str_transitions])
+        # Create a TransitionMatrix instance with the n-grams
+        transition_matrix = generics.TransitionMatrix(chord_str_transitions)
 
-        count_sources = collections.Counter(sources)
+        # Get the label counts for the n-grams
+        label_counts = transition_matrix.get_label_counts()
 
-        if n > 2:
-            count_targets = collections.Counter(targets)
-        elif n == 2:
-            count_targets = collections.Counter(sources)
-        else:
-            raise ValueError(f'n must be greater than 1. Unexpected value {n=}')
-
-        transition_matrix = pd.DataFrame(0, columns=count_targets.keys(), index=count_sources.keys())
-
-        for source, target in zip(sources, targets):
-            transition_matrix.loc[source, target] += 1
-
-        if probability:
-            transition_prob = transition_matrix.divide(transition_matrix.sum(axis=1), axis=0)
-            return transition_prob
-        return transition_matrix
+        # Create the transition matrix
+        matrix = transition_matrix.create_matrix(label_counts, probability)
+        return matrix
 
     def get_tonal_harmony_transition_in_mode_segment(self, pieceinfo_list: List[PieceInfo],
                                                      mode: typing.Literal['M', 'm'],
-                                                     n: int = 2) -> Sequential:
+                                                     n: int = 2) -> generics.Sequential:
         """This function will return the Sequential of tuples of """
         harmony_condition = lambda tonal_harmony: tonal_harmony.chord_str != ''
         same_local_key = lambda _tuple: all((x.localkey == _tuple[0].localkey for x in _tuple))
@@ -138,25 +113,26 @@ class ChordTransitionAnalysis:
     @staticmethod
     def piececwise_tonal_harmony_ngrams_from_pieceinfo_list(pieceinfo_list: List[PieceInfo],
                                                             harmony_condition: HarmonyCondition,
-                                                            n_gram_condition: NGramCondition, n: int) -> Sequential:
+                                                            n_gram_condition: NGramCondition,
+                                                            n: int) -> generics.Sequential:
         """
         Perform piece-wise operation (get TonalHarmony ngrams) from the pieceinfo_list according to
         pre-defined rules and join the ngrams as a Sequential object.
         """
 
         # define piece-wise operation   PieceInfo -> Sequential
-        def piece_operation(piece_info: PieceInfo) -> Sequential:
+        def piece_operation(piece_info: PieceInfo) -> generics.Sequential:
             return piece_info.get_tonal_harmony_sequential \
                 .filter_by_condition(condition=harmony_condition) \
                 .get_n_grams(n=n) \
                 .filter_by_condition(condition=n_gram_condition)
 
         sequentials_list = [piece_operation(pieceinfo) for pieceinfo in pieceinfo_list]
-        chord_transitions = Sequential.join(sequentials=sequentials_list)
+        chord_transitions = generics.Sequential.join(sequentials=sequentials_list)
         return chord_transitions
 
     # ________________________________________________________________________________________________
-    def symmetry_measure(self,a, b, transition_matrix: pd.DataFrame):
+    def symmetry_measure(self, a, b, transition_matrix: pd.DataFrame):
         # For a tuple of TonalHarmony object, symmetry of a chord transition is defined as:
         # sym_mode(a, b) = min_mode{p(a->b)/p(b->a), p(b->a)/p(a->b)}
 
@@ -177,9 +153,15 @@ class ChordAnalysis:
 
 
 if __name__ == '__main__':
-    metacorpora_path = 'naive_corpora/'
+    metacorpora_path = 'petit_dcml_corpus/'
     metacorpora = MetaCorporaInfo.from_directory(metacorpora_path=metacorpora_path)
 
     chord_transition_analysis = ChordTransitionAnalysis(metacorpora=metacorpora)
+    # the_transition_matrix = chord_transition_analysis.transition_matrix(
+    #     pieceinfo_list=metacorpora.get_annotated_pieces(),
+    #     n=2, mode='M')
+    # print(the_transition_matrix)
+    # symmetry = chord_transition_analysis.symmetry_measure(a='V65/V', b='V65(4)/V', transition_matrix=the_transition_matrix)
+    # print(symmetry)
 
     chord_transition_analysis.plot_heatmaps_to_folder(folder_path='chord_transitions_heatmap/')

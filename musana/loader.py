@@ -256,13 +256,20 @@ class PieceInfo:
     @cached_property
     def get_tonal_harmony_sequential(self) -> Sequential:
         """Essentially get the "chord" column from the dataframe and transform each chord to a TonalHarmony object. """
-        dropped_nan_df = self.harmony_info._df.dropna(subset=['globalkey', 'localkey', 'chord']).reset_index(drop=True)
-        sequence = [TonalHarmony.parse(globalkey_str=dropped_nan_df['globalkey'][i],
-                                       localkey_str=dropped_nan_df['localkey'][i],
-                                       chord_str=dropped_nan_df['chord'][i])
-                    for i in range(len(dropped_nan_df))]
+        dropped_nan_df = self.harmony_info._df.dropna(how='any', subset=['chord', 'globalkey', 'localkey'])
+        dropped_nan_df = dropped_nan_df.reset_index(drop=True)
 
-        tonal_harmony_sequential = Sequential.from_sequence(sequence=sequence)
+        def create_tonal_harmony(row):
+            return TonalHarmony.parse(globalkey_str=row['globalkey'],
+                                      localkey_str=row['localkey'],
+                                      chord_str=row['chord'])
+
+        # Create a list of TonalHarmony objects using the create_tonal_harmony() function
+        tonal_harmony_list = dropped_nan_df.apply(create_tonal_harmony, axis=1)
+
+        # Create a Sequential object from the list of TonalHarmony objects
+        tonal_harmony_sequential = Sequential.from_sequence(tonal_harmony_list)
+
         return tonal_harmony_sequential
 
 
