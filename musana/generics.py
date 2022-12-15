@@ -7,10 +7,13 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+# set typing, Sequential of tuples:
 T = typing.TypeVar('T')
+ST: Sequential[typing.Tuple]
+
 
 @dataclass
-class Sequential:
+class Sequential(typing.Generic[T]):
     _seq: typing.Sequence[T]
 
     def __len__(self):
@@ -50,7 +53,7 @@ class Sequential:
         sequential = self.from_sequence(sequence=sequence)
         return sequential
 
-    def get_n_grams(self, n: int) -> Sequential:
+    def get_n_grams(self, n: int) -> ST:
         """
         Returns a Squential type of object in which each transition is expressed as a tuple.
         :param n:
@@ -85,6 +88,35 @@ class Sequential:
         return transition_matrix
 
 
+@dataclass
+class TransitionMatrix:
+    n_grams: ST
+    def __repr__(self) -> str:
+        return f'TransitionMatrix(n_grams={self.n_grams})'
+    def get_label_counts(self) -> collections.Counter[str]:
+        label_counts = collections.Counter()
+        for n_gram in self.n_grams:
+            source, target = n_gram.split('_', 1)
+            label_counts[source] += 1
+            label_counts[target] += 1
+        return label_counts
+
+    def create_matrix(self, label_counts: collections.Counter[str], probability: bool = True) -> pd.DataFrame:
+        # Get the labels sorted by the count of each label
+        sorted_labels = [label for label, count in label_counts.most_common()]
+
+        # Create an empty Pandas DataFrame with the sorted labels as the index and columns
+        transition_matrix = pd.DataFrame(0, index=sorted_labels, columns=sorted_labels)
+
+        for n_gram in self.n_grams:
+            source, target = n_gram.rsplit('_', 1)[0], n_gram.rsplit('_', 1)[1]
+            transition_matrix.loc[source, target] += 1
+
+        if probability:
+            # normalize the DataFrame by dividing each element by the sum of its row
+            transition_prob = transition_matrix.div(transition_matrix.sum(axis=1), axis=0)
+            return transition_prob
+        return transition_matrix
 
 
 if __name__ == '__main__':
