@@ -91,8 +91,10 @@ class Sequential(typing.Generic[T]):
 @dataclass
 class TransitionMatrix:
     n_grams: ST
+
     def __repr__(self) -> str:
         return f'TransitionMatrix(n_grams={self.n_grams})'
+
     def get_label_counts(self) -> collections.Counter[str]:
         label_counts = collections.Counter()
         for n_gram in self.n_grams:
@@ -115,6 +117,7 @@ class TransitionMatrix:
         if probability:
             # normalize the DataFrame by dividing each element by the sum of its row
             transition_prob = transition_matrix.div(transition_matrix.sum(axis=1), axis=0)
+            transition_prob = transition_prob.fillna(0)
             return transition_prob
         return transition_matrix
 

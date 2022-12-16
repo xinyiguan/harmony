@@ -3,6 +3,7 @@ import typing
 from dataclasses import dataclass
 from typing import List
 
+import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 
@@ -47,7 +48,8 @@ class ChordTransitionAnalysis:
         for mode, ax in zip(modes, axs):
             cmap = self.cmap_dict[mode]
             pieceinfo_list = metacorpora.get_annotated_pieces()
-            transition_matrix = self.transition_matrix(pieceinfo_list=pieceinfo_list, n=n, mode=mode)
+            transition_matrix = self.chord_str_transition_matrix(pieceinfo_list=pieceinfo_list, n=n, mode=mode,
+                                                                 probability=True)
 
             ax.set_title(f'{mode}, shape={transition_matrix.shape}')
             plotting.transition_matrix_heatmap(transition_matrix=transition_matrix, ax=ax, cmap=cmap,
@@ -65,17 +67,25 @@ class ChordTransitionAnalysis:
             cmap = self.cmap_dict[mode]
             era_condition = lambda piece_info: piece_info.meta_info.era == era
             pieceinfo_list = metacorpora.filter_pieces_by_condition(condition=era_condition)
-            transition_matrix = self.transition_matrix(pieceinfo_list=pieceinfo_list, n=n, mode=mode)
+            transition_matrix = self.chord_str_transition_matrix(pieceinfo_list=pieceinfo_list, n=n, mode=mode,
+                                                                 probability=True)
 
             ax.set_title(f'{era}, shape={transition_matrix.shape}')
             plotting.transition_matrix_heatmap(transition_matrix=transition_matrix, ax=ax, cmap=cmap,
                                                view_top_n=view_top_n)
         return fig
 
-    def transition_matrix(self, pieceinfo_list: List[PieceInfo], n: int,
-                          mode: typing.Literal['M', 'm'], probability: bool = True) -> pd.DataFrame:
+    def chord_str_transition_matrix(self, pieceinfo_list: List[PieceInfo], n: int,
+                                    mode: typing.Literal['M', 'm'], probability: bool) -> pd.DataFrame:
         # Get the tonal harmony transitions in the given mode segment
         tonal_harmony_transitions = self.get_tonal_harmony_transition_in_mode_segment(pieceinfo_list, mode, n)
+
+        # For bigrams, add additional filter on tonal_harmony_transition such that a != b
+        if n == 2:
+            filtered_tonal_harmony_transitions = generics.Sequential.from_sequence(
+                sequence=[tonal_harmony for tonal_harmony in tonal_harmony_transitions if
+                          tonal_harmony[0].chord_str != tonal_harmony[1].chord_str])
+            tonal_harmony_transitions = filtered_tonal_harmony_transitions
 
         # Extract the chord str from the tonal harmony tuple as a sequential of tuples, use '_' to join the parts
         chord_str_transitions = tonal_harmony_transitions.map(
@@ -132,36 +142,65 @@ class ChordTransitionAnalysis:
         return chord_transitions
 
     # ________________________________________________________________________________________________
-    def symmetry_measure(self, a, b, transition_matrix: pd.DataFrame):
+    def symmetry_measure_of_transitions_conditional_prob_version(self, transition_matrix: pd.DataFrame) -> pd.DataFrame:
         # For a tuple of TonalHarmony object, symmetry of a chord transition is defined as:
-        # sym_mode(a, b) = min_mode{p(a->b)/p(b->a), p(b->a)/p(a->b)}
+        # sym_mode(a, b) = min_mode{p(a|b)/p(b|a), p(b|a)/p(a|b)} (from the transition matrix)
 
-        return min(transition_matrix[a][b] / transition_matrix[b][a], transition_matrix[b][a] / transition_matrix[a][b])
+        mask = transition_matrix + transition_matrix.T == 0  # mask all (a,b) s.t. T(a,b)=T(b,a)=0, T := transition_matrix
+        T = np.ma.array(data=transition_matrix, mask=mask)
+        T[T == 0] = 1e-20  # Set all 0 probabilities with epsilon
+        E = T / T.T  # p(a->b)/p(b->a)
+        S = np.min(np.ma.stack([E, 1 / E]),
+                   axis=0)  # min {p(a->b)/p(b->a),p(b->a)/p(a->b)} = min(E, 1 / E), element-wise min
 
-    def compute_metacorpora_symmetry_measures(self):
+        df = pd.DataFrame(data=S, index=transition_matrix.index, columns=transition_matrix.columns)
+        return df
 
-        transition_matrix = ...  # your transition matrix
+    def mode_symmetry_measures_conditional_prob_version(self, transition_matrix: pd.DataFrame):
+        # The mode symmetry is defined as the average over all bigram symmetries
+        # of chord progressions in segments in this mode.
+        T = transition_matrix
+        M = np.tril(T + T.T)
 
-        for a in range(len(transition_matrix)):
-            for b in range(len(transition_matrix)):
-                sym = self.symmetry_measure(a, b, transition_matrix)
-                print(f"The symmetry measure for the transition from state {a} to state {b} is {sym}.")
+        df = self.symmetry_measure_of_transitions_conditional_prob_version(transition_matrix=transition_matrix)
 
+        S = np.ma.array(data=df, mask=df.isna())
 
+        mode_sym = np.sum(S * np.tril(M))
+        return mode_sym
+
+    def fabian_symmetry_measure(self, mode: typing.Literal['M', 'm']):
+        # sym_mode(a, b) = min_mode{p(a->b)/p(b->a), p(b->a)/p(a->b)} where p(a->b)=count(a->b)/N_m
+        # sym(a, b)=min{p(ab)/p(ba), p(ba)/p(ab)}
+
+        th_transitions = self.get_tonal_harmony_transition_in_mode_segment(mode=mode,
+                                                                           pieceinfo_list=metacorpora.get_annotated_pieces())
+
+        chord_str_transitions = th_transitions.map(
+            operation=lambda _tuple: [x.chord_str for x in _tuple])
+        raise NotImplemented
 class ChordAnalysis:
     pass
 
 
 if __name__ == '__main__':
-    metacorpora_path = 'petit_dcml_corpus/'
+    metacorpora_path = 'naive_corpora/'
     metacorpora = MetaCorporaInfo.from_directory(metacorpora_path=metacorpora_path)
 
     chord_transition_analysis = ChordTransitionAnalysis(metacorpora=metacorpora)
-    # the_transition_matrix = chord_transition_analysis.transition_matrix(
+    # chord_transition_analysis.plot_heatmaps_to_folder(folder_path='chord_transitions_heatmap/')
+    # the_transition_matrix = chord_transition_analysis.chord_str_transition_matrix(
     #     pieceinfo_list=metacorpora.get_annotated_pieces(),
-    #     n=2, mode='M')
-    # print(the_transition_matrix)
-    # symmetry = chord_transition_analysis.symmetry_measure(a='V65/V', b='V65(4)/V', transition_matrix=the_transition_matrix)
-    # print(symmetry)
+    #     n=2, mode='M', probability=True)
 
-    chord_transition_analysis.plot_heatmaps_to_folder(folder_path='chord_transitions_heatmap/')
+    # # transition = generics.Sequential.from_sequence(sequence=[('V65/V', 'V65(4)/V')])
+    # print(the_transition_matrix)
+    # symmetry = chord_transition_analysis.symmetry_measure_of_transitions_conditional_prob_version(
+    #     transition_matrix=the_transition_matrix)
+    # print(symmetry.to_markdown())
+    # result = chord_transition_analysis.mode_symmetry_measures_conditional_prob_version(
+    #     transition_matrix=the_transition_matrix)
+    # print(result)
+
+    result = chord_transition_analysis.fabian_symmetry_measure(mode='M')
+    print(result)
