@@ -9,7 +9,6 @@ import pandas as pd
 
 # set typing, Sequential of tuples:
 T = typing.TypeVar('T')
-ST: Sequential[typing.Tuple]
 
 
 @dataclass
@@ -88,6 +87,9 @@ class Sequential(typing.Generic[T]):
         return transition_matrix
 
 
+ST = Sequential[typing.Tuple]
+
+
 @dataclass
 class TransitionMatrix:
     n_grams: ST
@@ -95,23 +97,44 @@ class TransitionMatrix:
     def __repr__(self) -> str:
         return f'TransitionMatrix(n_grams={self.n_grams})'
 
-    def get_label_counts(self) -> collections.Counter[str]:
+    # def get_label_counts(self) -> collections.Counter[str]:
+    #     label_counts = collections.Counter()
+    #     for n_gram in self.n_grams:
+    #         source = '_'.join(n_gram[:-1])
+    #         target = n_gram[-1:]
+    #         label_counts[source] += 1
+    #         label_counts[target] += 1
+    #     return label_counts
+
+    def get_source_label_counts(self) -> collections.Counter[str]:
         label_counts = collections.Counter()
         for n_gram in self.n_grams:
-            source, target = n_gram.split('_', 1)
+            source = '_'.join(n_gram[:-1])
             label_counts[source] += 1
+        return label_counts
+
+    def get_target_label_counts(self) -> collections.Counter[str]:
+        label_counts = collections.Counter()
+        for n_gram in self.n_grams:
+            target = ''.join(n_gram[-1:])
             label_counts[target] += 1
         return label_counts
 
-    def create_matrix(self, label_counts: collections.Counter[str], probability: bool = True) -> pd.DataFrame:
+    def create_matrix(self, probability: bool = True) -> pd.DataFrame:
+
+        source_label_counts = self.get_source_label_counts()
+        target_label_counts = self.get_target_label_counts()
+
         # Get the labels sorted by the count of each label
-        sorted_labels = [label for label, count in label_counts.most_common()]
+        sorted_source_labels = [label for label, count in source_label_counts.most_common()]
+        sorted_target_labels = [label for label, count in target_label_counts.most_common()]
 
         # Create an empty Pandas DataFrame with the sorted labels as the index and columns
-        transition_matrix = pd.DataFrame(0, index=sorted_labels, columns=sorted_labels)
+        transition_matrix = pd.DataFrame(0, index=sorted_source_labels, columns=sorted_target_labels)
 
         for n_gram in self.n_grams:
-            source, target = n_gram.rsplit('_', 1)[0], n_gram.rsplit('_', 1)[1]
+            source = '_'.join(n_gram[:-1])
+            target = n_gram[-1:]
             transition_matrix.loc[source, target] += 1
 
         if probability:
