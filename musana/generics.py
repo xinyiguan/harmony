@@ -122,12 +122,17 @@ class TransitionMatrix:
 
     def create_matrix(self, probability: bool = True) -> pd.DataFrame:
 
-        source_label_counts = self.get_source_label_counts()
-        target_label_counts = self.get_target_label_counts()
+        if (len(n_gram) == 2 for n_gram in self.n_grams):
+            unpack_tuples_list = list(map(lambda x: x[0], self.n_grams._seq[:])) + [self.n_grams._seq[-1][-1]]
+            count = collections.Counter(unpack_tuples_list)
+            sorted_source_labels = [x for x, number in count.most_common()]
+            sorted_target_labels = sorted_source_labels
 
-        # Get the labels sorted by the count of each label
-        sorted_source_labels = [label for label, count in source_label_counts.most_common()]
-        sorted_target_labels = [label for label, count in target_label_counts.most_common()]
+        else:
+            source_label_counts = self.get_source_label_counts()
+            target_label_counts = self.get_target_label_counts()
+            sorted_source_labels = [label for label, count in source_label_counts.most_common()]
+            sorted_target_labels = [label for label, count in target_label_counts.most_common()]
 
         # Create an empty Pandas DataFrame with the sorted labels as the index and columns
         transition_matrix = pd.DataFrame(0, index=sorted_source_labels, columns=sorted_target_labels)

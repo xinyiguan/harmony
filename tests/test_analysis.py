@@ -6,7 +6,7 @@ class TestChordBigramsAnalysis(unittest.TestCase):
     test_tuple_seq = [('A', 'B'), ('B','C'), ('C', 'A'), ('A', 'B'), ('B', 'D'),
                       ('D', 'C'), ('C', 'D'), ('D', 'B'), ('B', 'A'), ('A', 'E')]
     def test_symmetry_measure_conditional_prob_version(self):
-        answer =
+        raise NotImplementedError
 
 
 if __name__ == '__main__':
