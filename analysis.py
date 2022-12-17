@@ -75,13 +75,13 @@ class ChordTransitionAnalysis:
                                                view_top_n=view_top_n)
         return fig
 
-    def chord_str_transition_matrix(self, chord_str_transitions: generics.ST, probability: bool=True)->pd.DataFrame:
+    def chord_str_transition_matrix(self, chord_str_transitions: generics.ST, probability: bool = True) -> pd.DataFrame:
         # Create a TransitionMatrix instance with the n-grams
         transition_matrix = generics.TransitionMatrix(chord_str_transitions).create_matrix(probability=probability)
         return transition_matrix
 
     def chord_str_transitions_sequential(self, pieceinfo_list: List[PieceInfo], n: int,
-                                    mode: typing.Literal['M', 'm']) -> generics.ST:
+                                         mode: typing.Literal['M', 'm']) -> generics.ST:
         # Get the tonal harmony transitions in the given mode segment
         tonal_harmony_transitions = self.get_tonal_harmony_transition_in_mode_segment(pieceinfo_list, mode, n)
 
@@ -147,40 +147,79 @@ class ChordBigramsAnalysis:
     metacorpora = MetaCorporaInfo
     bigram_tuples_sequential: generics.ST
 
-    def symmetry_measure_conditional_prob_version(self) -> pd.DataFrame:
+    # def symmetry_measures_matrix(self, transition_matrix: pd.DataFrame) -> pd.DataFrame:
+    #     mask = transition_matrix + transition_matrix.T == 0  # mask all (a,b) s.t. T(a,b)=T(b,a)=0, T:= transition_matrix
+    #     T = np.ma.array(data=transition_matrix, mask=mask)
+    #     T[T == 0] = 1e-20  # Set all 0 probabilities with epsilon
+    #     E = T / T.T  # T(a,b)/T(b,a) = p(a->b)/p(b->a)
+    #     S = np.min(np.ma.stack([E, 1 / E]),
+    #                axis=0)  # min {p(a->b)/p(b->a),p(b->a)/p(a->b)} = min(E, 1 / E), element-wise min
+    #
+    #     df = pd.DataFrame(data=S, index=transition_matrix.index, columns=transition_matrix.columns)
+    #     return df
+
+    def symmetry_measures_matrix_conditional_prob_version(self) -> pd.DataFrame:
         # For a tuple of TonalHarmony object, symmetry of a chord transition is defined as:
         # sym_mode(a, b) = min_mode{p(a|b)/p(b|a), p(b|a)/p(a|b)} (from the transition matrix)
         transition_matrix = generics.TransitionMatrix(n_grams=self.bigram_tuples_sequential).create_matrix()
         mask = transition_matrix + transition_matrix.T == 0  # mask all (a,b) s.t. T(a,b)=T(b,a)=0, T:= transition_matrix
-        T = np.ma.array(data=transition_matrix, mask=mask)
-        T[T == 0] = 1e-20  # Set all 0 probabilities with epsilon
-        E = T / T.T  # T(a,b)/T(b,a) = p(a->b)/p(b->a)
+        ma = np.ma.array(data=transition_matrix, mask=mask)
+        ma = np.ma.where(ma == 0, 1e-20, ma)  # Set all 0 probabilities with epsilon
+        E = ma / ma.T  # T(a,b)/T(b,a) = p(a->b)/p(b->a)
         S = np.min(np.ma.stack([E, 1 / E]),
                    axis=0)  # min {p(a->b)/p(b->a),p(b->a)/p(a->b)} = min(E, 1 / E), element-wise min
 
-        df = pd.DataFrame(data=S, index=transition_matrix.index, columns=transition_matrix.columns)
-        return df
+        symmetry_measures_matrix = pd.DataFrame(data=S, index=transition_matrix.index,
+                                                columns=transition_matrix.columns)
+        return symmetry_measures_matrix
 
-    def mode_symmetry_measures_conditional_prob_version(self, transition_matrix: pd.DataFrame):
-        # The mode symmetry is defined as the average over all bigram symmetries
-        # of chord progressions in segments in this mode.
-        T = transition_matrix
+    def mode_symmetry_measure_conditional_prob_version(self):
+        """
+        The mode symmetry is defined as the average over all bigram symmetries of chord progressions in segments in this mode.
+        sym(m) = sum(p_m(a->b)*sym_m(a, b))
+        """
+        df = self.symmetry_measures_matrix_conditional_prob_version()
+
+        T = generics.TransitionMatrix(n_grams=self.bigram_tuples_sequential).create_matrix()
         M = np.tril(T + T.T)
-
-        df = self.symmetry_measure_conditional_prob_version()
-
         S = np.ma.array(data=df, mask=df.isna())
-
         mode_sym = np.sum(S * np.tril(M))
+
         return mode_sym
 
-    def fabian_symmetry_measure(self):
-        # sym_mode(a, b) = min_mode{p(a->b)/p(b->a), p(b->a)/p(a->b)} where p(a->b)=count(a->b)/N_m
-        # sym(a, b)=min{p(ab)/p(ba), p(ba)/p(ab)} => min{count(a->b)/count(b->a), count(b->a)/count(a->b)}
+    def fabian_symmetry_measures_matrix(self):
+        """
+        sym_mode(a, b) = min_mode{p(a->b)/p(b->a), p(b->a)/p(a->b)} where p(a->b)=count(a->b)/N_m
+        sym(a, b)=min{p(ab)/p(ba), p(ba)/p(ab)} => min{count(a->b)/count(b->a), count(b->a)/count(a->b)}
+        """
+        count_transition_matrix = generics.TransitionMatrix(n_grams=self.bigram_tuples_sequential).create_matrix(
+            probability=False)
+        mask = count_transition_matrix + count_transition_matrix.T == 0  # mask all (a,b) s.t. T(a,b)=T(b,a)=0, T:= transition_matrix
+        ma = np.ma.array(data=count_transition_matrix, mask=mask)
+        ma = np.ma.where(ma == 0, 1e-20, ma)  # Set all 0 probabilities with epsilon
+        E = ma / ma.T  # T(a,b)/T(b,a) = p(a->b)/p(b->a)
+        S = np.min(np.ma.stack([E, 1 / E]),
+                   axis=0)  # min {p(a->b)/p(b->a),p(b->a)/p(a->b)} = min(E, 1 / E), element-wise min
 
-        # create a defaultdict to store the counts of transitions between each pair of symbols
-        raise NotImplementedError
+        symmetry_measures_matrix = pd.DataFrame(data=S, index=count_transition_matrix.index,
+                                                columns=count_transition_matrix.columns)
 
+        return symmetry_measures_matrix
+
+    def fabian_mode_symmetry_measures(self):
+        count_transition_matrix = generics.TransitionMatrix(n_grams=self.bigram_tuples_sequential).create_matrix(
+            probability=False)
+        symmetry_measures_matrix = self.fabian_symmetry_measures_matrix()
+
+        # entries in the matrix: countm(a ! b)/Nm, where Nm is the number of segments in that mode
+        N_m = len(self.bigram_tuples_sequential)
+        normalized_transition_matrix: pd.DataFrame = count_transition_matrix / N_m
+
+        element_wise_matrix_mult = normalized_transition_matrix.mul(other=symmetry_measures_matrix,
+                                                                    fill_value=0) # p(a->b) * sym(a, b)
+
+        mode_sym = np.sum(element_wise_matrix_mult.to_numpy())
+        return mode_sym
 
 
 class ChordAnalysis:
@@ -193,7 +232,14 @@ if __name__ == '__main__':
 
     chord_transition_analysis = ChordTransitionAnalysis(metacorpora=metacorpora)
 
-    bigram_tuples_sequential = chord_transition_analysis.chord_str_transitions_sequential(pieceinfo_list=metacorpora.get_annotated_pieces(),
-                                                                                          n=2, mode='M')
+    bigram_tuples_sequential = chord_transition_analysis.chord_str_transitions_sequential(
+        pieceinfo_list=metacorpora.get_annotated_pieces(),
+        n=2, mode='M')
     sym = ChordBigramsAnalysis(bigram_tuples_sequential=bigram_tuples_sequential)
-    sym.fabian_symmetry_measure()
+
+    # cond_sym = sym.fabian_symmetry_measures_matrix()
+
+    my_sym = sym.mode_symmetry_measure_conditional_prob_version()
+    fabian_sym = sym.fabian_mode_symmetry_measures()
+    print(f'{my_sym=}')
+    print(f'{fabian_sym=}')
