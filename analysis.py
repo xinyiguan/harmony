@@ -222,6 +222,9 @@ class ChordBigramsAnalysis:
         return mode_sym
 
 
+    def phik_corr(self):
+        raise NotImplementedError
+
 class ChordAnalysis:
     pass
 
