@@ -5,6 +5,7 @@ from typing import List
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from matplotlib import pyplot as plt
 
 import musana.generics as generics
@@ -83,7 +84,7 @@ class ChordTransitionAnalysis:
     def chord_str_transitions_sequential(self, pieceinfo_list: List[PieceInfo], n: int,
                                          mode: typing.Literal['M', 'm']) -> generics.ST:
         # Get the tonal harmony transitions in the given mode segment
-        tonal_harmony_transitions = self.get_tonal_harmony_transition_in_mode_segment(pieceinfo_list, mode, n)
+        tonal_harmony_transitions = self.get_tonal_harmony_transitions(pieceinfo_list, mode, n)
 
         # For bigrams, add additional filter on tonal_harmony_transition such that a != b
         if n == 2:
@@ -98,9 +99,9 @@ class ChordTransitionAnalysis:
 
         return chord_str_transitions
 
-    def get_tonal_harmony_transition_in_mode_segment(self, pieceinfo_list: List[PieceInfo],
-                                                     mode: typing.Literal['M', 'm'],
-                                                     n: int = 2) -> generics.Sequential:
+    def get_tonal_harmony_transitions(self, pieceinfo_list: List[PieceInfo],
+                                      mode: typing.Literal['M', 'm'],
+                                      n: int = 2) -> generics.Sequential:
         """This function will return the Sequential of tuples of """
         harmony_condition = lambda tonal_harmony: tonal_harmony.chord_str != ''
         same_local_key = lambda _tuple: all((x.localkey == _tuple[0].localkey for x in _tuple))
@@ -144,7 +145,6 @@ class ChordBigramsAnalysis:
     """
     This class holds the symmetry measure of bigrams given a Sequential of bigram tuples.
     """
-    metacorpora = MetaCorporaInfo
     bigram_tuples_sequential: generics.ST
 
     # def symmetry_measures_matrix(self, transition_matrix: pd.DataFrame) -> pd.DataFrame:
@@ -157,6 +157,21 @@ class ChordBigramsAnalysis:
     #
     #     df = pd.DataFrame(data=S, index=transition_matrix.index, columns=transition_matrix.columns)
     #     return df
+
+    def relative_frequency(self, top_n: typing.Optional[int]):
+        """plot the relative frequency of bigrams, rank in the x-axis and proportion in y-axis
+        relative frequency = occurrences of the bigram/total bigrams occurrences count
+        """
+        bigram_counter = collections.Counter(self.bigram_tuples_sequential).most_common()
+        xs = 1 + np.arange(len(bigram_counter))
+        total_count = sum([tuple[1] for tuple in bigram_counter])
+        ys = [tuple[1] / total_count for tuple in bigram_counter]
+
+        plt.scatter(x=xs[:top_n], y=ys[:top_n], c='#1f77b4', alpha=0.5)
+        plt.title('Relative frequency of bigrams')
+        plt.xlabel("Rank")
+        plt.ylabel("Proportion")
+        plt.show()
 
     def symmetry_measures_matrix_conditional_prob_version(self) -> pd.DataFrame:
         # For a tuple of TonalHarmony object, symmetry of a chord transition is defined as:
@@ -216,33 +231,46 @@ class ChordBigramsAnalysis:
         normalized_transition_matrix: pd.DataFrame = count_transition_matrix / N_m
 
         element_wise_matrix_mult = normalized_transition_matrix.mul(other=symmetry_measures_matrix,
-                                                                    fill_value=0) # p(a->b) * sym(a, b)
+                                                                    fill_value=0)  # p(a->b) * sym(a, b)
 
         mode_sym = np.sum(element_wise_matrix_mult.to_numpy())
         return mode_sym
 
-
     def phik_corr(self):
         raise NotImplementedError
 
+
 class ChordAnalysis:
-    pass
+
+    def complexity(self):
+        raise NotImplementedError
+
+    def chromaticity(self):
+        raise NotImplementedError
 
 
 if __name__ == '__main__':
-    metacorpora_path = 'naive_corpora/'
+    metacorpora_path = 'petit_dcml_corpus/'
     metacorpora = MetaCorporaInfo.from_directory(metacorpora_path=metacorpora_path)
 
     chord_transition_analysis = ChordTransitionAnalysis(metacorpora=metacorpora)
 
-    bigram_tuples_sequential = chord_transition_analysis.chord_str_transitions_sequential(
+    bigram_tuples_sequential_M = chord_transition_analysis.chord_str_transitions_sequential(
         pieceinfo_list=metacorpora.get_annotated_pieces(),
         n=2, mode='M')
-    sym = ChordBigramsAnalysis(bigram_tuples_sequential=bigram_tuples_sequential)
+    bigram_tuples_sequential_m = chord_transition_analysis.chord_str_transitions_sequential(
+        pieceinfo_list=metacorpora.get_annotated_pieces(),
+        n=2, mode='m')
+
+    bigrams = generics.Sequential.join([bigram_tuples_sequential_m, bigram_tuples_sequential_M])
+
+    bigram_analysis = ChordBigramsAnalysis(bigram_tuples_sequential=bigrams)
+
+    bigram_analysis.relative_frequency(top_n=None)
 
     # cond_sym = sym.fabian_symmetry_measures_matrix()
 
-    my_sym = sym.mode_symmetry_measure_conditional_prob_version()
-    fabian_sym = sym.fabian_mode_symmetry_measures()
-    print(f'{my_sym=}')
-    print(f'{fabian_sym=}')
+    # my_sym = sym.mode_symmetry_measure_conditional_prob_version()
+    # fabian_sym = sym.fabian_mode_symmetry_measures()
+    # print(f'{my_sym=}')
+    # print(f'{fabian_sym=}')

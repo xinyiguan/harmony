@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 import typing
+from abc import abstractmethod
 from dataclasses import dataclass
 from typing import Literal, List, Set
 
 import pandas as pd
-from pitchtypes import Pitch as AbstractPitch
 from pitchtypes import SpelledPitchClass, SpelledIntervalClass
 
 
@@ -56,27 +56,49 @@ class Key:
         return resulting_str
 
 
-@dataclass(frozen=True)
-class BaseHarmony:
-    tones: Set[AbstractPitch]
+class ProtocolHarmony(typing.Protocol):
+    @abstractmethod
+    def root(self) -> SpelledPitchClass:
+        pass
+
+    @abstractmethod
+    def key_if_tonicized(self) -> Key:
+        pass
+
+    @abstractmethod
+    def pc_set(self) -> Set[SpelledPitchClass]:
+        pass
+
+    @abstractmethod
+    def chord_tones(self) -> Set[SpelledPitchClass]:
+        pass
+
+    @abstractmethod
+    def added_tones(self) -> Set[SpelledPitchClass]:
+        pass
 
 
 @dataclass(frozen=True)
-class SingleNumeral:
+class SingleNumeral(ProtocolHarmony):
     key: Key
     numeral_str: str
     degree: int
     alteration: int
     quality: Literal['M', 'm']
 
-    _s_numeral_regex = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IX|IV|V?I{0,3}))$", re.I)
+    # _s_numeral_regex = re.compile(
+    #     "^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IX|IV|V?I{0,3}))$",
+    #     re.I)
+
+    # "IV(+6)", "vii%7"
+    _s_numeral_regex = re.compile(
+        "^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IX|IV|V?I{0,3}))(?P<chord_tone_replacement>(?:\(([0-9]+)\))?)(?P<added_tones>(?:\(\+([0-9]+)\))?)$",
+        re.I)
 
     @classmethod
     def parse(cls, key_str: str | Key, numeral_str: str) -> SingleNumeral:
         numeral_scale_degree_dict = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
                                      "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
-
-        _s_numeral_regex = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IX|IV|V?I{0,3}))$", re.I)
 
         if not isinstance(numeral_str, str):
             raise TypeError(f"expected string as input, got {numeral_str}")
@@ -91,6 +113,8 @@ class SingleNumeral:
             key = key_str
         degree = numeral_scale_degree_dict.get(s_numeral_match['roman_numeral'])
         quality = "M" if s_numeral_match['roman_numeral'].isupper() else "m"
+
+        added_tones = s_numeral_match['added_tones']
 
         modifiers_count = len(s_numeral_match['modifiers'])
         if all((char == "#" for char in s_numeral_match['modifiers'])):
@@ -128,17 +152,29 @@ class SingleNumeral:
         key = Key(root=self.root(), mode=self.quality)
         return key
 
+    def pc_set(self) -> Set[SpelledPitchClass]:
+        pass
 
-@dataclass(frozen=True)
-class Numeral:
-    key: Key
-    L: SingleNumeral
-    R: Numeral | None
-    quality: Literal['M', 'm']
+    def chord_tones(self) -> Set[SpelledPitchClass]:
+        pass
 
+    def added_tones(self) -> Set[SpelledPitchClass]:
+        pass
+
+
+T = typing.TypeVar('T')
+
+
+@dataclass
+class Chain(typing.Generic[T]):
+    head: T
+    tail: typing.Optional[Chain[T]]
+
+
+class Numeral(Chain[SingleNumeral]):
     @classmethod
-    def parse(cls, key_str: str, numeral_str: str) -> Numeral:
-        # numeral_str examples: "#ii/V", "##III/bIV/V", "bV"
+    def parse(cls, key_str: str, numeral_str: str) -> typing.Self:
+        # numeral_str examples: "#ii/V", "##III/bIV/V", "bV", "IV(+6)", "vii%7/IV"
         if not isinstance(key_str, str):
             raise TypeError(f"expected string as input, got {key_str}")
         if not isinstance(numeral_str, str):
@@ -148,83 +184,57 @@ class Numeral:
         if "/" in numeral_str:
             L_numeral_str, R_numeral_str = numeral_str.split("/", maxsplit=1)
             R = cls.parse(key_str=key_str, numeral_str=R_numeral_str)
-            L = SingleNumeral.parse(key_str=R.key_if_tonicized(), numeral_str=L_numeral_str)
+            # todo: makesure the key works
+            L = SingleNumeral.parse(key_str=R.head.key_if_tonicized(), numeral_str=L_numeral_str)
 
         else:
             L = SingleNumeral.parse(key_str=key_str, numeral_str=numeral_str)
             R = None
 
-        instance = cls(key=key, L=L, R=R, quality=L.quality)
+        instance = cls(head=L, tail=R)
         return instance
-
-    def quality(self):
-        return self.L.quality
-
-    def parent_key(self):
-        if self.R is None:
-            return self.key
-        else:
-            return self.R.key_if_tonicized()
-
-    def root(self):
-        return self.L.root()
-
-    def key_if_tonicized(self) -> Key:
-        key_if_tonicized = Key(root=self.root(), mode=self.quality)
-        return key_if_tonicized
-
-    def applied_chord_to_roman_numeral(self) -> SingleNumeral:
-        """
-        Applied chords are converted into Roman numerals relative to the key, e.g. V/V becomes II
-        """
-        raise NotImplementedError
 
 
 @dataclass(frozen=True)
-class TonalHarmony:
+class TonalHarmony(ProtocolHarmony):
     globalkey: Key
-    localkey: Numeral
-    chord_str: str
+    numeral: Numeral
+    bookeeping: typing.Dict[str, str]  # for bookkeeping
 
-    _figurebass_regex = re.compile("^(?P<figbass>(7 | 65 | 43 | 42 | 2 | 64 | 6))$")
-
-    def __str__(self):
-        return self.chord_str
+    # def __str__(self):
+    #    return str(self.bookeeping)
 
     @classmethod
-    def parse(cls, globalkey_str: str, localkey_str: str, chord_str: str) -> typing.Self:
+    def parse(cls, globalkey_str: str, localkey_numeral_str: str, chord_str: str) -> typing.Self:
         # chord_str examples: "IV(+6)", "vii%7/IV", "ii64"
-        if not isinstance(globalkey_str, str):
-            raise TypeError(f"expected string as input, got {globalkey_str}")
-        if not isinstance(localkey_str, str):
-            raise TypeError(f"expected string as input, got {localkey_str}")
-        if not isinstance(chord_str, str):
-            raise TypeError(f"expected string as input, got {chord_str}")
-
         globalkey = Key.parse(key_str=globalkey_str)
-        localkey = Numeral.parse(key_str=globalkey_str, numeral_str=localkey_str)
-
-        instance = cls(globalkey=globalkey, localkey=localkey, chord_str=chord_str)
+        localkey = Numeral.parse(key_str=globalkey_str, numeral_str=localkey_numeral_str).head.key_if_tonicized()
+        compound_numeral = Numeral.parse(key_str=localkey.to_str(), numeral_str=chord_str)
+        instance = cls(globalkey=globalkey, numeral=compound_numeral,
+                       bookeeping={'globalkey_str': globalkey_str,
+                                   'localkey_numeral_str': localkey_numeral_str,
+                                   'chord_str': chord_str,
+                                   })
         return instance
-
-    def key_if_tonicized(self) -> Key:
-        raise NotImplementedError
 
     def pc_set(self) -> Set[SpelledPitchClass]:
         pitchclass = self.chord_tones() | self.added_tones()
         return pitchclass
 
+    def root(self) -> SpelledPitchClass:
+        pass
+
+    def key_if_tonicized(self) -> Key:
+        pass
+
     def to_numeral(self) -> Numeral:
-        raise NotImplementedError
+        pass
 
     def chord_tones(self) -> Set[SpelledPitchClass]:
-        raise NotImplementedError
+        pass
 
     def added_tones(self) -> Set[SpelledPitchClass]:
-        raise NotImplementedError
-
-    def root(self) -> SpelledPitchClass:
-        raise NotImplementedError
+        pass
 
 
 @dataclass
@@ -307,8 +317,5 @@ class Progression:
 
 
 if __name__ == '__main__':
-    single_numeral = SingleNumeral.parse(key_str="c", numeral_str="bIII")
-    print(single_numeral.key_if_tonicized())
-    result = single_numeral.key_if_tonicized().to_str()
-
-    print(result)
+    tonal_harmony = TonalHarmony.parse(globalkey_str='F', localkey_numeral_str='V', chord_str='bIII/vi')
+    print(tonal_harmony)
