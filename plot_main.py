@@ -8,7 +8,7 @@ from matplotlib import pyplot as plt
 
 from musana import util
 from musana.loader import MetaCorporaInfo, SequentialData
-from musana.musictypes import ModulationBigram
+from musana.harmony_types import ModulationBigram
 
 
 def assemble_piece_localkey_entropy_df(metacorpora_path: str,

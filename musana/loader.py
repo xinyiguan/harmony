@@ -13,7 +13,7 @@ from scipy.stats import entropy
 
 import musana.util as util
 from musana.generics import Sequential
-from musana.musictypes import Key, TonalHarmony
+from musana.harmony_types import Key, TonalHarmony
 
 
 @dataclass(frozen=True)

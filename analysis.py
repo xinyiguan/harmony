@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 
 import musana.generics as generics
 from musana.loader import PieceInfo, MetaCorporaInfo
-from musana.musictypes import TonalHarmony
+from musana.harmony_types import TonalHarmony
 import musana.plotting as plotting
 
 
