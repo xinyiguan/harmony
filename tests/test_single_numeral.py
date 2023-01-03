@@ -26,7 +26,7 @@ class TestSingleNumeral(unittest.TestCase):
         sn5_match = SingleNumeral._sn_regex.match("ii%43")
         sn6_match = SingleNumeral._sn_regex.match("#viio2")
         sn7_match = SingleNumeral._sn_regex.match("IV7(+6+2)")
-        sn8_match = SingleNumeral._sn_regex.match(("ii(+4+#2)"))
+        sn8_match = SingleNumeral._sn_regex.match("ii(+4+#2)")
 
         self.assertEqual(sn1_match["modifiers"], "")
         self.assertEqual(sn4_match["modifiers"], "#")
