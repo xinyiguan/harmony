@@ -6,12 +6,16 @@ import re
 import typing
 from abc import abstractmethod
 from dataclasses import dataclass
+from functools import cached_property
+from typing import List
 
 import pandas as pd
-from pitchtypes import SpelledPitchClass, SpelledIntervalClass
+from pitchtypes import SpelledPitchClass as _SpelledPitchClass
+from pitchtypes import SpelledIntervalClass
 
 
-class SpelledPitchClass(SpelledPitchClass):
+class SpelledPitchClass(_SpelledPitchClass):
+
     def alteration_ic(self) -> SpelledIntervalClass:
         if self.alteration() > 0:
             alteration_symbol = 'a' * self.alteration()
@@ -23,6 +27,7 @@ class SpelledPitchClass(SpelledPitchClass):
             raise ValueError(self.alteration)
         interval_class = SpelledIntervalClass(f'{alteration_symbol}1')
         return interval_class
+
 
 
 @dataclass(frozen=True)
@@ -56,12 +61,14 @@ class Key:
         else:
             raise ValueError(f'{self.mode=}')
         interval = intervals[degree.number - 1]
-        pc: SpelledPitchClass = self.root + SpelledIntervalClass(interval)
+        pc = self.root + SpelledIntervalClass(interval)
+        pc = SpelledPitchClass(pc.name())  # TODO: do it in the right way later (look up customized SpelledPitchClass)
         pc = pc - pc.alteration_ic()
         return pc
 
+    @cached_property
     def pcs(self) -> typing.List[SpelledPitchClass]:
-        return [self.find_pc(degree=n) for n in range(1, 8)]
+        return [self.find_pc(degree=Degree(number=n,alteration=0)) for n in range(1, 8)]
 
     def to_str(self) -> str:
         if self.mode == 'm':
@@ -97,7 +104,19 @@ class Degree:
     alteration: int | bool  # when int: positive for "#", negative for "b", when bool: represent whether to use natural
 
     def __add__(self, other: typing.Self) -> typing.Self:
-        number = (self.number + other.number - 1) % 7
+        """
+        n steps (0 steps is unison) <-- degree (1 is unison)
+        |
+        V
+        n steps (0 steps is unison) --> degree (1 is unison)
+
+        """
+        number = ((self.number - 1) + (other.number - 1)) % 7 + 1
+        alteration = other.alteration
+        return Degree(number=number, alteration=alteration)
+
+    def __sub__(self, other: typing.Self) -> typing.Self:
+        number = ((self.number - 1) - (other.number - 1)) % 7 + 1
         alteration = other.alteration
         return Degree(number=number, alteration=alteration)
 
@@ -108,12 +127,12 @@ class Degree:
         if sd_match is None:
             raise ValueError(f"could not match '{scale_degree}' with regex: '{sd_regex.pattern}'")
 
-        number = sd_match['number']
-        modifiers = sd_match['modifiers']
-        alteration = len(modifiers) if '#' in modifiers else -len(modifiers)
+        number_match = sd_match['number']
+        modifiers_match = sd_match['modifiers']
+        alteration = len(modifiers_match) if '#' in modifiers_match else -len(modifiers_match)
 
         # create class instance:
-        instance = cls(number=number, alteration=alteration)
+        instance = cls(number=int(number_match), alteration=alteration)
         return instance
 
 
@@ -122,10 +141,10 @@ class SingleNumeral(ProtocolHarmony):
     key: Key
     degree: Degree
     quality: typing.Literal['M', 'm']
-    form: typing.Optional[typing.Literal["%", "o", "M", "m"]]
-    figbass: typing.List[Degree]
-    added_tones: typing.List[Degree]
-    replacement_tones: typing.List[Degree]
+    form: typing.Literal["%", "o", "M", "m"] | None
+    figbass: typing.List[Degree] | None
+    added_tones: typing.List[Degree] | None
+    replacement_tones: typing.List[Degree] | None
 
     # the regular expression conforms with the DCML annotation standards
     _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))?"  # accidentals
@@ -166,19 +185,32 @@ class SingleNumeral(ProtocolHarmony):
         added_tones_match = s_numeral_match['added_tones']
         if added_tones_match:
             added_tones = [Degree.parse(scale_degree=x) for x in added_tones_match.split('+')[1:]]
+        else:
+            added_tones = None
 
         # replacement_tones:
-        replacement_tones_match = s_numeral_match['replecement_tones']
+        replacement_tones_match = s_numeral_match['replacement_tones']
         if replacement_tones_match:
             seperated_replaced_tones_tuples = re.findall(r'([#b])?([2-8])', string=replacement_tones_match)
-            seperated_replaced_tones = [''.join(x) for x in seperated_replaced_tones_tuples]        # join the accidental and number for each seperated replaced tone
-            replacement_tones = [Degree.parse(scale_degree=x) for x in seperated_replaced_tones]    # convert to Degree type
+            seperated_replaced_tones = [''.join(x) for x in
+                                        seperated_replaced_tones_tuples]  # join the accidental and number for each seperated replaced tone
+            replacement_tones = [Degree.parse(scale_degree=x) for x in
+                                 seperated_replaced_tones]  # convert to Degree type
+        else:
+            replacement_tones = None
 
-        # parse figbass: # TODO: figbass
+        # parse figbass:
         figbass_match = s_numeral_match['figbass']
-        figbass_degree_dict = {"7": [], "65": [], "43": [], "42": [], "2": [], "64": [], "6": []}
-        figbass = ...
+        if figbass_match:
+            figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [6, 1, 3, 5], "43": [4, 6, 1, 3],
+                                   "42": [2, 4, 6, 1], "2": [2, 4, 6, 1],
+                                   "64": [4, 6, 1],
+                                   "6": [6, 1, 3]}  # assume the first number x is: bass + x = root , 1 := unison
 
+            figbass = [Degree.parse(scale_degree=str(x)) for x in figbass_degree_dict.get(figbass_match)]
+
+        else:
+            figbass = None
         # create class instance:
         instance = cls(key=key,
                        degree=degree, quality=quality,
@@ -199,20 +231,16 @@ class SingleNumeral(ProtocolHarmony):
         key = Key(root=self.root(), mode=self.quality)
         return key
 
+    def bass_degree(self) -> Degree:
+        bass_degree = sn.degree - sn.figbass[0]
+        return bass_degree
+
+    def bass_pc(self) -> SpelledPitchClass:
+        pc = self.key.find_pc(self.bass_degree())
+        return pc
+
     def chord_tones(self) -> typing.List[SpelledPitchClass]:
         raise NotImplementedError
-
-    # Todo: added_tones should be a field, not method.
-    # def added_tones(self) -> typing.List[SpelledPitchClass]:
-    #     # added_tone "reflects only those non-chord tones that were added using, within parentheses,
-    #     # intervals preceded by + or/and greater than 8."
-    #
-    #     if self.changes and ("+" in self.changes or 8 < int(self.changes) < 14):
-    #         added_tones = [x for x in self.changes.split("+")[1:]]
-    #
-    #     else:
-    #         added_tones = []
-    #     return added_tones
 
     def pc_set(self) -> typing.Set[SpelledPitchClass]:
         pass
@@ -371,12 +399,14 @@ if __name__ == '__main__':
     # tonal_harmony = TonalHarmony.parse(globalkey_str='F', localkey_numeral_str='V', chord_str='bIII/vi')
     # print(tonal_harmony)
     #
-    sn = SingleNumeral.parse(key_str='d', numeral_str="ii(+4+#2)")
-    print(sn)
-    # pc_in_scale = sn.key_if_tonicized().pcs()
-    # print('em scale:: ', pc_in_scale)
-    # triad_tones = [pc_in_scale[i] for i in (0, 2, 4)]
-
-    # key = Key.parse(key_str="d")
-    # result = key.find_pc(degree=Degree(number=3,alteration=1))
-    # print(result)
+    sn = SingleNumeral.parse(key_str='C', numeral_str="VII65")
+    # print('sn: ', sn)
+    # print('root: ', sn.root())
+    #
+    # bass = sn.degree - sn.figbass[0]
+    # print(f'{bass}')
+    # voices: List[Degree] = [bass + degree for degree in sn.figbass]
+    # print(f'{voices=}')
+    bass_pc = sn.bass_pc()
+    ic = SpelledIntervalClass('M2')
+    print(f'{bass_pc+ic=}')

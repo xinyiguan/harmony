@@ -3,6 +3,8 @@ import re
 import typing
 from dataclasses import dataclass
 
+from pitchtypes import SpelledPitchClass, SpelledIntervalClass
+
 
 @dataclass
 class Degree:
@@ -68,6 +70,18 @@ def test():
         seperated_replaced_tones = [''.join(x) for x in seperated_replaced_tones_tuples]
         replacement_tones_degrees = [Degree.parse(scale_degree=x) for x in seperated_replaced_tones]
         print('replacement_tones_degrees: ', replacement_tones_degrees)
+
+    figbass_match = s_numeral_match['figbass']
+    if figbass_match:
+        figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [1, 3, 5, 6], "43": [1, 3, 4, 6],
+                               "42": [1, 2, 4, 6], "2": [1, 2, 4, 6],
+                               "64": [1, 4, 6], "6": [1, 3, 6]}  # TODO: need to double check
+        figbass_list = list(map(str,figbass_degree_dict.get(figbass_match)))
+        figbass = list(map(Degree.parse, figbass_list))
+
+        print('figbass: ', figbass)
+
+
 
 if __name__ == '__main__':
     test()
