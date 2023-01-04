@@ -11,6 +11,20 @@ import pandas as pd
 from pitchtypes import SpelledPitchClass, SpelledIntervalClass
 
 
+class SpelledPitchClass(SpelledPitchClass):
+    def alteration_ic(self) -> SpelledIntervalClass:
+        if self.alteration() > 0:
+            alteration_symbol = 'a' * self.alteration()
+        elif self.alteration() == 0:
+            alteration_symbol = 'P'  # perfect unison, no alterations
+        elif self.alteration() < 0:
+            alteration_symbol = 'd' * abs(self.alteration())
+        else:
+            raise ValueError(self.alteration)
+        interval_class = SpelledIntervalClass(f'{alteration_symbol}1')
+        return interval_class
+
+
 @dataclass(frozen=True)
 class Key:
     root: SpelledPitchClass
@@ -34,18 +48,17 @@ class Key:
         instance = cls(root=root, mode=mode)
         return instance
 
-    def find_pc(self, degree) -> SpelledPitchClass:
+    def find_pc(self, degree: Degree) -> SpelledPitchClass:
         if self.mode == 'M':
             intervals = self._M_intervals
         elif self.mode == 'm':
             intervals = self._m_intervals
         else:
             raise ValueError(f'{self.mode=}')
-        interval = intervals[degree - 1]
-        pc = self.root + SpelledIntervalClass(interval)
+        interval = intervals[degree.number - 1]
+        pc: SpelledPitchClass = self.root + SpelledIntervalClass(interval)
+        pc = pc - pc.alteration_ic()
         return pc
-
-
 
     def pcs(self) -> typing.List[SpelledPitchClass]:
         return [self.find_pc(degree=n) for n in range(1, 8)]
@@ -77,16 +90,32 @@ class ProtocolHarmony(typing.Protocol):
     def chord_tones(self) -> typing.Set[SpelledPitchClass]:
         pass
 
-    @abstractmethod
-    def added_tones(self) -> typing.Set[SpelledPitchClass]:
-        pass
 
+@dataclass
 class Degree:
     number: int
-    alteration: int
+    alteration: int | bool  # when int: positive for "#", negative for "b", when bool: represent whether to use natural
 
-    def __add__(self) -> typing.Self:
-        raise NotImplementedError
+    def __add__(self, other: typing.Self) -> typing.Self:
+        number = (self.number + other.number - 1) % 7
+        alteration = other.alteration
+        return Degree(number=number, alteration=alteration)
+
+    @classmethod
+    def parse(cls, scale_degree: str) -> Degree:
+        sd_regex = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
+        sd_match = sd_regex.match(scale_degree)
+        if sd_match is None:
+            raise ValueError(f"could not match '{scale_degree}' with regex: '{sd_regex.pattern}'")
+
+        number = sd_match['number']
+        modifiers = sd_match['modifiers']
+        alteration = len(modifiers) if '#' in modifiers else -len(modifiers)
+
+        # create class instance:
+        instance = cls(number=number, alteration=alteration)
+        return instance
+
 
 @dataclass(frozen=True)
 class SingleNumeral(ProtocolHarmony):
@@ -94,14 +123,19 @@ class SingleNumeral(ProtocolHarmony):
     degree: Degree
     quality: typing.Literal['M', 'm']
     form: typing.Optional[typing.Literal["%", "o", "M", "m"]]
-    figbass: Degree
-    added_tones:typing.List[Degree]
-    replacement_tones:typing.List[Degree]
+    figbass: typing.List[Degree]
+    added_tones: typing.List[Degree]
+    replacement_tones: typing.List[Degree]
 
     # the regular expression conforms with the DCML annotation standards
-
-    _sn_regex = re.compile(
-        "^(?P<modifiers>(b*)|(#*))?(?P<roman_numeral>(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))(?P<form>%|o|\+|M|\+M)?(?P<figbass>7|65|43|42|2|64|6)?(?:\((?P<changes>(?:[\+-\^v]?[b#]*\d)+)\))?$")
+    _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))?"  # accidentals
+                           "(?P<roman_numeral>(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))"  # roman numeral
+                           "(?P<form>(%|o|\+|M|\+M))?"  # form
+                           "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
+                           "(\("
+                           "((?P<added_tones>((\+)([#b])?([2-8]))+|([#b])?(9|1[0-4]))?|"  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
+                           "(?P<replacement_tones>(([#b])?([2-8]))+)?)"  # replaced chord tones expressed through intervals <= 8
+                           "\))?$")
 
     @classmethod
     def parse(cls, key_str: str | Key, numeral_str: str) -> SingleNumeral:
@@ -111,48 +145,51 @@ class SingleNumeral(ProtocolHarmony):
         # match with regex
         s_numeral_match = SingleNumeral._sn_regex.match(numeral_str)
         if s_numeral_match is None:
-            raise ValueError(
-                f"could not match '{numeral_str}' with regex: '{SingleNumeral._sn_regex.pattern}'")
-        # parse key
+            raise ValueError(f"could not match '{numeral_str}' with regex: '{SingleNumeral._sn_regex.pattern}'")
+
+        # parse key:
         if not isinstance(key_str, Key):
             key = Key.parse(key_str=key_str)
         else:
             key = key_str
 
-        # parse degree, quality, alterations
-        degree = numeral_scale_degree_dict.get(s_numeral_match['roman_numeral'])  # TODO: account for Ger/Fr/It
+        # parse quality:
         quality = "M" if s_numeral_match['roman_numeral'].isupper() else "m"
 
-        modifiers_count = len(s_numeral_match['modifiers'])
-        if all((char == "#" for char in s_numeral_match['modifiers'])):
-            alteration = modifiers_count
-        elif all((char == "b" for char in s_numeral_match['modifiers'])):
-            alteration = -modifiers_count
-        else:
-            raise ValueError(f'Unexpected mixed accidentals')
+        # parse degree:
+        degree_number = numeral_scale_degree_dict.get(s_numeral_match['roman_numeral'])  # TODO: account for Ger/Fr/It
+        modifiers = s_numeral_match['modifiers']
+        degree_alteration = SpelledPitchClass(f'C{modifiers}').alteration()
+        degree = Degree(number=degree_number, alteration=degree_alteration)
+
+        # parse added_tones:
+        added_tones_match = s_numeral_match['added_tones']
+        if added_tones_match:
+            added_tones = [Degree.parse(scale_degree=x) for x in added_tones_match.split('+')[1:]]
+
+        # replacement_tones:
+        replacement_tones_match = s_numeral_match['replecement_tones']
+        if replacement_tones_match:
+            seperated_replaced_tones_tuples = re.findall(r'([#b])?([2-8])', string=replacement_tones_match)
+            seperated_replaced_tones = [''.join(x) for x in seperated_replaced_tones_tuples]        # join the accidental and number for each seperated replaced tone
+            replacement_tones = [Degree.parse(scale_degree=x) for x in seperated_replaced_tones]    # convert to Degree type
+
+        # parse figbass: # TODO: figbass
+        figbass_match = s_numeral_match['figbass']
+        figbass_degree_dict = {"7": [], "65": [], "43": [], "42": [], "2": [], "64": [], "6": []}
+        figbass = ...
 
         # create class instance:
-        instance = cls(key=key, roman_numeral=s_numeral_match['roman_numeral'],
-                       degree=degree, alteration=alteration, quality=quality,
-                       form=s_numeral_match['form'], figbass=s_numeral_match['figbass'],
-                       changes=s_numeral_match['changes'])
+        instance = cls(key=key,
+                       degree=degree, quality=quality,
+                       form=s_numeral_match['form'], figbass=figbass,
+                       added_tones=added_tones, replacement_tones=replacement_tones)
         return instance
 
     def root(self) -> SpelledPitchClass:
 
-        scale_pitch = self.key.find_pc(self.degree)
+        root = self.key.find_pc(self.degree)
 
-        if self.alteration > 0:
-            alteration_symbol = 'a' * self.alteration
-        elif self.alteration == 0:
-            alteration_symbol = 'P'  # perfect unison, no alterations
-        elif self.alteration < 0:
-            alteration_symbol = 'd' * abs(self.alteration)
-        else:
-            raise ValueError(self.alteration)
-
-        interval_class = SpelledIntervalClass(f'{alteration_symbol}1')
-        root = scale_pitch + interval_class
         return root
 
     def key_if_tonicized(self) -> Key:
@@ -334,10 +371,12 @@ if __name__ == '__main__':
     # tonal_harmony = TonalHarmony.parse(globalkey_str='F', localkey_numeral_str='V', chord_str='bIII/vi')
     # print(tonal_harmony)
     #
-    # sn = SingleNumeral.parse(key_str='d', numeral_str="ii(+4+#2)")
+    sn = SingleNumeral.parse(key_str='d', numeral_str="ii(+4+#2)")
+    print(sn)
     # pc_in_scale = sn.key_if_tonicized().pcs()
     # print('em scale:: ', pc_in_scale)
     # triad_tones = [pc_in_scale[i] for i in (0, 2, 4)]
 
-    key = Key.parse(key_str="d")
-
+    # key = Key.parse(key_str="d")
+    # result = key.find_pc(degree=Degree(number=3,alteration=1))
+    # print(result)
