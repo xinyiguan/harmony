@@ -2,7 +2,7 @@
 import re
 import typing
 from dataclasses import dataclass
-
+import regex_spm
 from pitchtypes import SpelledPitchClass, SpelledIntervalClass
 
 
@@ -37,6 +37,23 @@ def test_parse():
     print(result)
 
 
+@dataclass
+class Quality:
+    """Defined by the intervals between notes"""
+
+    stacksize: int
+    quality_list: typing.List[re.compile("^((M)|(m)|(a)+|(d)+)$")]
+
+class SingleNumeralRegex:
+    modifiers=re.compile("(b*)|(#*)?") # accidentals
+    roman_numeral = re.compile("VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none")  # roman numeral
+    form=re.compile("(%|o|\+|M|\+M)?" ) # form
+    figbass=  re.compile("(7|65|43|42|2|64|6)?" ) # figured bass
+    added_tones= re.compile("((\+)([#b])?([2-8]))+|([#b])?(9|1[0-4])")  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
+    replacement_tones=re.compile("([#b])?([2-8])+")  # replaced chord tones expressed through intervals <= 8
+
+
+
 def test():
     _sn_regex = re.compile(
         "^(?P<modifiers>(b*)|(#*))?"  # accidentals
@@ -48,40 +65,57 @@ def test():
         "(?P<replacement_tones>(([#b])?([2-8]))+)?)"  # replaced chord tones expressed through intervals <= 8
         "\))?$")
 
-    s_numeral_match = _sn_regex.match("#viio65(4)")
-    print(s_numeral_match)
-    modifiers = s_numeral_match['modifiers']
-    form = s_numeral_match['form']
-    figbass = s_numeral_match['figbass']
-    added_tones_match = s_numeral_match['added_tones']
-    replacement_tones_match = s_numeral_match['replacement_tones']
-    print('modifiers: ', modifiers)
-    print('form: ', form)
-    print('figbass: ', figbass)
-    print('added_tones:  ', added_tones_match)
-    print('replacement_tones: ', replacement_tones_match)
+    # quality= ['M', 'm', '%', 'o', '+', '7', 'M7', 'm7', '%7', 'o7', '+7']
 
-    if added_tones_match:
-        added_tones_degrees = [Degree.parse(scale_degree=x) for x in added_tones_match.split('+')[1:]]
-        print('added_tones_degrees: ', added_tones_degrees)
+    numeral_str = "bII6"
 
-    if replacement_tones_match:
-        seperated_replaced_tones_tuples = re.findall(r'([#b])?([2-8])', string=replacement_tones_match)
-        seperated_replaced_tones = [''.join(x) for x in seperated_replaced_tones_tuples]
-        replacement_tones_degrees = [Degree.parse(scale_degree=x) for x in seperated_replaced_tones]
-        print('replacement_tones_degrees: ', replacement_tones_degrees)
+    s_numeral_match = _sn_regex.match(numeral_str)
+    print(f'{s_numeral_match=}')
 
-    figbass_match = s_numeral_match['figbass']
-    if figbass_match:
-        figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [1, 3, 5, 6], "43": [1, 3, 4, 6],
-                               "42": [1, 2, 4, 6], "2": [1, 2, 4, 6],
-                               "64": [1, 4, 6], "6": [1, 3, 6]}  # TODO: need to double check
-        figbass_list = list(map(str,figbass_degree_dict.get(figbass_match)))
-        figbass = list(map(Degree.parse, figbass_list))
+    # def regex_matching_condition(group_name):
+    #     return s_numeral_match.get(group_name, '')
 
-        print('figbass: ', figbass)
+    regex_matching_condition = lambda group_name: s_numeral_match[group_name] if s_numeral_match[group_name] else ''
 
+    modifiers = regex_matching_condition('modifiers')
+    roman_numeral = regex_matching_condition('roman_numeral')
+    form = regex_matching_condition('form')
+    figbass = regex_matching_condition('figbass')
+    added_tones = regex_matching_condition('added_tones')
+    replacement_tones = regex_matching_condition('replacement_tones')
+
+
+
+
+    cond_M = roman_numeral.isupper() and figbass in ['', '6', '64']
+    cond_m = ...
+    cond_dim = ...
+    cond_aug = ...
+
+    cond_M7 = ...
+    cond_7 = ...
+    cond_m7 = ...
+    cond_half_dim7 = ...
+    cond_dim7 = ...
+    cond_aug7 = ...
+
+    quality_in_thirds_dict = {
+        cond_M: ['M', 'm'], cond_m: ['m', 'M'], cond_dim: ['m', 'm'], cond_aug: ['M', 'M'],
+        cond_M7: ['M', 'm', 'M'], cond_7: ['M', 'm', 'm'], cond_m7: ['m', 'M', 'm'],
+        cond_half_dim7: ['m', 'm', 'M'], cond_dim7: ['m', 'm', 'm'], cond_aug7: ['M', 'M', 'd']
+    }
+
+
+
+
+def test_regex_spm():
+    match regex_spm.fullmatch_in("123,45"):
+        case r"(\d+),(?P<second>\d+)" as m:
+            print("Notice the `as m` at the end of the line above")
+            print(f"The first group is {m[1]}")
+            print(f"The second group is {m['second']}")
+            print(f"The full `re.Match` object is available as {m.match}")
 
 
 if __name__ == '__main__':
-    test()
+    test_regex_spm()

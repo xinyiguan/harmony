@@ -6,12 +6,12 @@ import re
 import typing
 from abc import abstractmethod
 from dataclasses import dataclass
-from functools import cached_property
+from functools import cached_property, cache
 from typing import List
 
 import pandas as pd
 from pitchtypes import SpelledPitchClass as _SpelledPitchClass
-from pitchtypes import SpelledIntervalClass
+from pitchtypes import SpelledIntervalClass as SpelledIntervalClass
 
 
 class SpelledPitchClass(_SpelledPitchClass):
@@ -28,6 +28,10 @@ class SpelledPitchClass(_SpelledPitchClass):
         interval_class = SpelledIntervalClass(f'{alteration_symbol}1')
         return interval_class
 
+
+@dataclass
+class IntervalThird:
+    third: SpelledIntervalClass(re.compile("^(?P<quality>((M)|(m)|(a)+|(d)+))(?P<stacksize>3)$"))
 
 
 @dataclass(frozen=True)
@@ -66,9 +70,10 @@ class Key:
         pc = pc - pc.alteration_ic()
         return pc
 
-    @cached_property
+    @property
+    @cache
     def pcs(self) -> typing.List[SpelledPitchClass]:
-        return [self.find_pc(degree=Degree(number=n,alteration=0)) for n in range(1, 8)]
+        return [self.find_pc(degree=Degree(number=n, alteration=0)) for n in range(1, 8)]
 
     def to_str(self) -> str:
         if self.mode == 'm':
@@ -136,12 +141,24 @@ class Degree:
         return instance
 
 
+@dataclass
+class Quality:
+    """Defined by the intervals between notes"""
+
+    stacksize: int
+    quality_list: typing.List[re.compile("^((M)|(m)|(a)+|(d)+)$")]
+
+    @classmethod
+    def parse(cls) -> Quality:
+        instance = cls(stacksize=3, quality=['M', 'M', 'd'])
+        return instance
+
+
 @dataclass(frozen=True)
 class SingleNumeral(ProtocolHarmony):
     key: Key
     degree: Degree
-    quality: typing.Literal['M', 'm']
-    form: typing.Literal["%", "o", "M", "m"] | None
+    quality: Quality  # 4 triad qualities and 6 seventh chord qualities
     figbass: typing.List[Degree] | None
     added_tones: typing.List[Degree] | None
     replacement_tones: typing.List[Degree] | None
@@ -172,7 +189,7 @@ class SingleNumeral(ProtocolHarmony):
         else:
             key = key_str
 
-        # parse quality:
+        # parse quality, in stack of thirds:
         quality = "M" if s_numeral_match['roman_numeral'].isupper() else "m"
 
         # parse degree:
@@ -202,19 +219,26 @@ class SingleNumeral(ProtocolHarmony):
         # parse figbass:
         figbass_match = s_numeral_match['figbass']
         if figbass_match:
-            figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [6, 1, 3, 5], "43": [4, 6, 1, 3],
-                                   "42": [2, 4, 6, 1], "2": [2, 4, 6, 1],
-                                   "64": [4, 6, 1],
-                                   "6": [6, 1, 3]}  # assume the first number x is: bass + x = root , 1 := unison
+            ## Encoding version 1: interval from bass to root
+            # figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [6, 1, 3, 5], "43": [4, 6, 1, 3],
+            #                        "42": [2, 4, 6, 1], "2": [2, 4, 6, 1],
+            #                        "64": [4, 6, 1],
+            #                        "6": [6, 1, 3]}  # assume the first number x is: bass + x = root , 1 := unison
+
+            # Encoding version 2: interval from root to bass (inversion)
+            figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [3, 5, 7, 1], "43": [5, 7, 1, 3],
+                                   "42": [7, 1, 3, 5], "2": [7, 1, 3, 5],
+                                   "64": [5, 1, 3],
+                                   "6": [3, 5, 1]}  # assume the first number x is: root + x = bass , 1 := unison
 
             figbass = [Degree.parse(scale_degree=str(x)) for x in figbass_degree_dict.get(figbass_match)]
 
         else:
             figbass = None
+
         # create class instance:
         instance = cls(key=key,
-                       degree=degree, quality=quality,
-                       form=s_numeral_match['form'], figbass=figbass,
+                       degree=degree, quality=quality, figbass=figbass,
                        added_tones=added_tones, replacement_tones=replacement_tones)
         return instance
 
@@ -232,7 +256,11 @@ class SingleNumeral(ProtocolHarmony):
         return key
 
     def bass_degree(self) -> Degree:
-        bass_degree = sn.degree - sn.figbass[0]
+        # # Figbass encoding 1:
+        # bass_degree = sn.degree - sn.figbass[0]
+
+        # Figbass encoding 2:
+        bass_degree = sn.degree + sn.figbass[0]
         return bass_degree
 
     def bass_pc(self) -> SpelledPitchClass:
@@ -240,7 +268,21 @@ class SingleNumeral(ProtocolHarmony):
         return pc
 
     def chord_tones(self) -> typing.List[SpelledPitchClass]:
-        raise NotImplementedError
+
+        # Conform to Figbass encoding V2:
+        # find all tones exist according to figbass:
+        bass = self.bass_degree()
+        figbass_degrees_spelledout: List[Degree] = [degree - bass for degree in sn.figbass]
+
+        print(f'{bass=}')
+        print(f'{figbass_degrees_spelledout=}')
+
+        # consider alterations according to form and quality:
+        form_alterations_dict = {}
+
+        # check replacement_tones, and replaced accordingly:
+
+        # add the added_tones:
 
     def pc_set(self) -> typing.Set[SpelledPitchClass]:
         pass
@@ -399,7 +441,7 @@ if __name__ == '__main__':
     # tonal_harmony = TonalHarmony.parse(globalkey_str='F', localkey_numeral_str='V', chord_str='bIII/vi')
     # print(tonal_harmony)
     #
-    sn = SingleNumeral.parse(key_str='C', numeral_str="VII65")
+    sn = SingleNumeral.parse(key_str='C', numeral_str="V42")
     # print('sn: ', sn)
     # print('root: ', sn.root())
     #
@@ -407,6 +449,9 @@ if __name__ == '__main__':
     # print(f'{bass}')
     # voices: List[Degree] = [bass + degree for degree in sn.figbass]
     # print(f'{voices=}')
-    bass_pc = sn.bass_pc()
-    ic = SpelledIntervalClass('M2')
-    print(f'{bass_pc+ic=}')
+
+    # ic = SpelledIntervalClass('M2')
+    # print(f'{bass_pc+ic=}')
+
+    result = IntervalThird(third='k3')
+    print(result)
