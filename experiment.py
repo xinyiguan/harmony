@@ -11,24 +11,58 @@ class Degree:
     number: int
     alteration: int | bool  # when int: positive for "#", negative for "b", when bool: represent whether to use natural
 
+    numeral_scale_degree_dict = typing.ClassVar[{"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
+                                                 "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}]
+
     def __add__(self, other: typing.Self) -> typing.Self:
-        number = (self.number + other.number - 1) % 7
+        """
+        n steps (0 steps is unison) <-- degree (1 is unison)
+        |
+        V
+        n steps (0 steps is unison) --> degree (1 is unison)
+
+        """
+        number = ((self.number - 1) + (other.number - 1)) % 7 + 1
+        alteration = other.alteration
+        return Degree(number=number, alteration=alteration)
+
+    def __sub__(self, other: typing.Self) -> typing.Self:
+        number = ((self.number - 1) - (other.number - 1)) % 7 + 1
         alteration = other.alteration
         return Degree(number=number, alteration=alteration)
 
     @classmethod
-    def parse(cls, scale_degree: str) -> typing.Self:
-        sd_regex = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
-        sd_match = sd_regex.match(scale_degree)
-        if sd_match is None:
-            raise ValueError(f"could not match '{scale_degree}' with regex: '{sd_regex.pattern}'")
+    def parse_arabic_degree(cls, arabic_degree: str) -> typing.Self:
+        """
+        Examples of arabic_degree: b7, #2, 3, 5, #5, ...
+        """
+        ad_regex = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
+        ad_match = ad_regex.match(arabic_degree)
 
-        number = sd_match['number']
-        modifiers = sd_match['modifiers']
-        alteration = len(modifiers) if '#' in modifiers else -len(modifiers)
+        if ad_match is None:
+            raise ValueError(f"could not match '{arabic_degree}' with regex: '{ad_regex.pattern}'")
+
+        number_match = ad_match['number']
+        modifiers_match = ad_match['modifiers']
+        alteration = len(modifiers_match) if '#' in modifiers_match else -len(modifiers_match)
 
         # create class instance:
-        instance = cls(number=number, alteration=alteration)
+        instance = cls(number=int(number_match), alteration=alteration)
+        return instance
+
+    @classmethod
+    def parse_numeral_degree(cls, numeral_degree: str) -> typing.Self:
+        """
+        Examples of scale degree: bV, bIII, #II, IV, vi, vii
+        """
+        nd_regex = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IV|V?I{0,3}))$", re.I)
+        nd_match = nd_regex.match(numeral_degree)
+
+        rn_match = nd_match['roman_numeral']
+        degree_number = Degree.numeral_scale_degree_dict.get(rn_match)  # TODO: account for Ger/Fr/It
+        modifiers_match = nd_match['modifiers']
+        degree_alteration = SpelledPitchClass(f'C{modifiers_match}').alteration()
+        instance = cls(number=degree_number, alteration=degree_alteration)
         return instance
 
 
@@ -44,14 +78,15 @@ class Quality:
     stacksize: int
     quality_list: typing.List[re.compile("^((M)|(m)|(a)+|(d)+)$")]
 
-class SingleNumeralRegex:
-    modifiers=re.compile("(b*)|(#*)?") # accidentals
-    roman_numeral = re.compile("VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none")  # roman numeral
-    form=re.compile("(%|o|\+|M|\+M)?" ) # form
-    figbass=  re.compile("(7|65|43|42|2|64|6)?" ) # figured bass
-    added_tones= re.compile("((\+)([#b])?([2-8]))+|([#b])?(9|1[0-4])")  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
-    replacement_tones=re.compile("([#b])?([2-8])+")  # replaced chord tones expressed through intervals <= 8
 
+class SingleNumeralRegex:
+    modifiers = re.compile("(b*)|(#*)?")  # accidentals
+    roman_numeral = re.compile("VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none")  # roman numeral
+    form = re.compile("(%|o|\+|M|\+M)?")  # form
+    figbass = re.compile("(7|65|43|42|2|64|6)?")  # figured bass
+    added_tones = re.compile(
+        "((\+)([#b])?([2-8]))+|([#b])?(9|1[0-4])")  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
+    replacement_tones = re.compile("([#b])?([2-8])+")  # replaced chord tones expressed through intervals <= 8
 
 
 def test():
@@ -84,9 +119,6 @@ def test():
     added_tones = regex_matching_condition('added_tones')
     replacement_tones = regex_matching_condition('replacement_tones')
 
-
-
-
     cond_M = roman_numeral.isupper() and figbass in ['', '6', '64']
     cond_m = ...
     cond_dim = ...
@@ -106,8 +138,6 @@ def test():
     }
 
 
-
-
 def test_regex_spm():
     match regex_spm.fullmatch_in("123,45"):
         case r"(\d+),(?P<second>\d+)" as m:
@@ -117,5 +147,66 @@ def test_regex_spm():
             print(f"The full `re.Match` object is available as {m.match}")
 
 
+@dataclass
+class SingleNumeralParts:
+    modifiers: str
+    roman_numeral: str
+    form: str
+    figbass: str
+    added_tones: str
+    replacement_tones: str
+
+    # the regular expression conforms with the DCML annotation standards
+    _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))?"  # accidentals
+                           "(?P<roman_numeral>(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))"  # roman numeral
+                           "(?P<form>(%|o|\+|M|\+M))?"  # form
+                           "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
+                           "(\("
+                           "((?P<added_tones>((\+)([#b])?([2-8]))+|(([#b])?(9|1[0-4]))+)?|"  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
+                           "(?P<replacement_tones>(([#b])?([2-8]))+)?)"  # replaced chord tones expressed through intervals <= 8
+                           "\))?$")
+    @classmethod
+    def parse(cls,numeral_str: str) -> typing.Self:
+
+        # match with regex
+        s_numeral_match = SingleNumeralParts._sn_regex.match(numeral_str)
+        if s_numeral_match is None:
+            raise ValueError(f"could not match '{numeral_str}' with regex: '{SingleNumeralParts._sn_regex.pattern}'")
+
+        roman_numeral = s_numeral_match['roman_numeral']
+        modifiers =  s_numeral_match['modifiers'] if s_numeral_match['modifiers'] else ''
+        form = s_numeral_match['form'] if s_numeral_match['form'] else ''
+        figbass = s_numeral_match['figbass'] if s_numeral_match['figbass'] else ''
+        added_tones = s_numeral_match['added_tones'] if s_numeral_match['added_tones'] else ''
+        replacement_tones = s_numeral_match['replacement_tones'] if s_numeral_match['replacement_tones'] else ''
+
+        instance = cls(modifiers=modifiers, roman_numeral=roman_numeral, form=form, figbass=figbass,
+                       added_tones=added_tones,replacement_tones=replacement_tones)
+        return instance
+
+
+
+
+
 if __name__ == '__main__':
-    test_regex_spm()
+    snp = SingleNumeralParts.parse(numeral_str='bIII43(+b2+#4)')
+    print(f'{snp=}')
+
+    # if '+' in snp.added_tones:
+    #     added_tones = [Degree.parse_arabic_degree(arabic_degree=x) for x in snp.added_tones.split('+')[1:]]
+    # else:
+    #     seperated_added_tones_tuples = re.findall(r'(([#b])?(9|1[0-4]))', string=snp.added_tones)
+    #     print(f'{seperated_added_tones_tuples=}')
+    #     seperated_added_tones = [''.join(x) for x in
+    #                              seperated_added_tones_tuples]  # join the accidental and number for each seperated replaced tone
+    #     added_tones = [Degree.parse_arabic_degree(arabic_degree=x) for x in
+    #                    seperated_added_tones]  # convert to Degree type
+
+
+    match regex_spm.fullmatch_in(snp.added_tones):
+        case r"((?P<plus>\+)(?P<modifiers>[#b])?(?P<number>[2-8]))" as m:
+            print(f'{m[3]}')
+            added_tones=[Degree.parse_arabic_degree(arabic_degree=m['modifiers']+m['number'])]
+
+
+
