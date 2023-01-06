@@ -189,24 +189,15 @@ class SingleNumeralParts:
 
 
 if __name__ == '__main__':
-    snp = SingleNumeralParts.parse(numeral_str='bIII43(+b2+#4)')
-    print(f'{snp=}')
+    # test_regex_spm()
+    # snp = SingleNumeralParts.parse(numeral_str='bIII43(b9#13)')
+    # print(f'{snp=}')
 
-    # if '+' in snp.added_tones:
-    #     added_tones = [Degree.parse_arabic_degree(arabic_degree=x) for x in snp.added_tones.split('+')[1:]]
-    # else:
-    #     seperated_added_tones_tuples = re.findall(r'(([#b])?(9|1[0-4]))', string=snp.added_tones)
-    #     print(f'{seperated_added_tones_tuples=}')
-    #     seperated_added_tones = [''.join(x) for x in
-    #                              seperated_added_tones_tuples]  # join the accidental and number for each seperated replaced tone
-    #     added_tones = [Degree.parse_arabic_degree(arabic_degree=x) for x in
-    #                    seperated_added_tones]  # convert to Degree type
+    regex = re.compile(r'(?P<modifiers>[b#]*)(?P<number>9|11|13)')
+    match_iter = regex.finditer('#9b13')
+    print([match[0] for match in match_iter])
 
 
-    match regex_spm.fullmatch_in(snp.added_tones):
-        case r"((?P<plus>\+)(?P<modifiers>[#b])?(?P<number>[2-8]))" as m:
-            print(f'{m[3]}')
-            added_tones=[Degree.parse_arabic_degree(arabic_degree=m['modifiers']+m['number'])]
 
 
 
