@@ -14,6 +14,8 @@ from pitchtypes import SpelledPitchClass as _SpelledPitchClass
 from pitchtypes import SpelledIntervalClass as SpelledIntervalClass
 
 
+T = typing.TypeVar('T')
+
 class SpelledPitchClass(_SpelledPitchClass):
 
     def alteration_ic(self) -> SpelledIntervalClass:
@@ -28,10 +30,6 @@ class SpelledPitchClass(_SpelledPitchClass):
         interval_class = SpelledIntervalClass(f'{alteration_symbol}1')
         return interval_class
 
-
-@dataclass
-class IntervalThird:
-    third: SpelledIntervalClass(re.compile("^(?P<quality>((M)|(m)|(a)+|(d)+))(?P<stacksize>3)$"))
 
 
 @dataclass(frozen=True)
@@ -107,7 +105,9 @@ class ProtocolHarmony(typing.Protocol):
 class Degree:
     number: int
     alteration: int | bool  # when int: positive for "#", negative for "b", when bool: represent whether to use natural
-
+    
+    numeral_scale_degree_dict = typing.ClassVar[{"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
+                                 "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}]
     def __add__(self, other: typing.Self) -> typing.Self:
         """
         n steps (0 steps is unison) <-- degree (1 is unison)
@@ -125,43 +125,80 @@ class Degree:
         alteration = other.alteration
         return Degree(number=number, alteration=alteration)
 
-    @classmethod
-    def parse(cls, scale_degree: str) -> Degree:
-        sd_regex = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
-        sd_match = sd_regex.match(scale_degree)
-        if sd_match is None:
-            raise ValueError(f"could not match '{scale_degree}' with regex: '{sd_regex.pattern}'")
 
-        number_match = sd_match['number']
-        modifiers_match = sd_match['modifiers']
+    @classmethod
+    def parse_arabic_degree(cls, arabic_degree: str) -> typing.Self:
+        """
+        Examples of arabic_degree: b7, #2, 3, 5, #5, ...
+        """
+        ad_regex = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
+        ad_match = ad_regex.match(arabic_degree)
+
+        if ad_match is None:
+            raise ValueError(f"could not match '{arabic_degree}' with regex: '{ad_regex.pattern}'")
+
+        number_match = ad_match['number']
+        modifiers_match = ad_match['modifiers']
         alteration = len(modifiers_match) if '#' in modifiers_match else -len(modifiers_match)
 
         # create class instance:
         instance = cls(number=int(number_match), alteration=alteration)
         return instance
-
-
-@dataclass
-class Quality:
-    """Defined by the intervals between notes"""
-
-    stacksize: int
-    quality_list: typing.List[re.compile("^((M)|(m)|(a)+|(d)+)$")]
-
+    
     @classmethod
-    def parse(cls) -> Quality:
-        instance = cls(stacksize=3, quality=['M', 'M', 'd'])
+    def parse_numeral_degree(cls, numeral_degree: str)->typing.Self:
+        """
+        Examples of scale degree: bV, bIII, #II, IV, vi, vii
+        """
+        nd_regex = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IV|V?I{0,3}))$", re.I)
+        nd_match = nd_regex.match(numeral_degree)
+
+        rn_match = nd_match['roman_numeral']
+        degree_number = Degree.numeral_scale_degree_dict.get(rn_match)  # TODO: account for Ger/Fr/It
+        modifiers_match = nd_match['modifiers']
+        degree_alteration = SpelledPitchClass(f'C{modifiers_match}').alteration()
+        instance=cls(number=degree_number, alteration=degree_alteration)
         return instance
 
+@dataclass
+class P:
+    alt_steps: int
 
-@dataclass(frozen=True)
-class SingleNumeral(ProtocolHarmony):
-    key: Key
-    degree: Degree
-    quality: Quality  # 4 triad qualities and 6 seventh chord qualities
-    figbass: typing.List[Degree] | None
-    added_tones: typing.List[Degree] | None
-    replacement_tones: typing.List[Degree] | None
+class IP:
+    def __init__(self,alt_steps:int):
+        if alt_steps == 0:
+            raise ValueError(f'{alt_steps=}')
+        self.alt_steps = alt_steps
+
+@dataclass
+class HarmonyQuality:
+    """ Examples:
+    stack_of_thirds_3_Mm = HarmonyQuality(stacksize=3,ic_quality_list=[IP(1),IP(-1)]) # Major triad
+    stack_of_thirds_4_mmm = HarmonyQuality(stacksize=3,ic_quality_list=[IP(-1),IP(-1),IP(-1)]) # fully diminished seventh chord
+    stack_of_fifth_4_PPP = HarmonyQuality(stacksize=5,ic_quality_list=[P(0),P(0),P(0)])
+    stack_of_fifth_3_ADP = HarmonyQuality(stacksize=5,ic_quality_list=[P(-1),P(1),P(0)])
+    """
+
+    stacksize: int
+    ic_quality_list: typing.List[P|IP]
+
+    @classmethod
+    def parse_snp(cls, snp: SingleNumeralParts)->typing.Self:
+        """
+        Examples of eligible strings:
+        """
+
+        instance= cls(stacksize=, ic_quality_list=)
+        return instance
+
+@dataclass
+class SingleNumeralParts:
+    roman_numeral: str
+    modifiers: str |None
+    form: str|None
+    figbass: str|None
+    added_tones: str|None
+    replacement_tones: str|None
 
     # the regular expression conforms with the DCML annotation standards
     _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))?"  # accidentals
@@ -169,19 +206,49 @@ class SingleNumeral(ProtocolHarmony):
                            "(?P<form>(%|o|\+|M|\+M))?"  # form
                            "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
                            "(\("
-                           "((?P<added_tones>((\+)([#b])?([2-8]))+|([#b])?(9|1[0-4]))?|"  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
+                           "((?P<added_tones>((\+)([#b])?([2-8]))+|(([#b])?(9|1[0-4]))+)?|"  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
                            "(?P<replacement_tones>(([#b])?([2-8]))+)?)"  # replaced chord tones expressed through intervals <= 8
                            "\))?$")
+    @classmethod
+    def parse(cls,numeral_str: str) -> typing.Self:
+
+        # match with regex
+        s_numeral_match = SingleNumeralParts._sn_regex.match(numeral_str)
+        if s_numeral_match is None:
+            raise ValueError(f"could not match '{numeral_str}' with regex: '{SingleNumeralParts._sn_regex.pattern}'")
+
+        roman_numeral = s_numeral_match['roman_numeral']
+        modifiers =  s_numeral_match['modifiers'] if s_numeral_match['modifiers'] else None
+        form = s_numeral_match['form'] if s_numeral_match['form'] else None
+        figbass = s_numeral_match['figbass'] if s_numeral_match['figbass'] else None
+        added_tones = s_numeral_match['added_tones'] if s_numeral_match['added_tones'] else None
+        replacement_tones = s_numeral_match['replacement_tones'] if s_numeral_match['replacement_tones'] else None
+
+        instance = cls(modifiers=modifiers, roman_numeral=roman_numeral, form=form, figbass=figbass,
+                       added_tones=added_tones,replacement_tones=replacement_tones)
+        return instance
+
+class SnpParsable(typing.Protocol):
+    @classmethod
+    @abstractmethod
+    def parse_snp(cls,snp:SingleNumeralParts)->typing.Self:
+        pass
+
+
+
+@dataclass(frozen=True)
+class SingleNumeral(ProtocolHarmony):
+    key: Key
+    degree: Degree
+    quality: HarmonyQuality  # 4 triad qualities and 6 seventh chord qualities
+    figbass: typing.List[Degree] | None
+    added_tones: typing.List[Degree] | None
+    replacement_tones: typing.List[Degree] | None
 
     @classmethod
     def parse(cls, key_str: str | Key, numeral_str: str) -> SingleNumeral:
-        numeral_scale_degree_dict = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
-                                     "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
 
-        # match with regex
-        s_numeral_match = SingleNumeral._sn_regex.match(numeral_str)
-        if s_numeral_match is None:
-            raise ValueError(f"could not match '{numeral_str}' with regex: '{SingleNumeral._sn_regex.pattern}'")
+        snp = SingleNumeralParts.parse(key_str, numeral_str)
 
         # parse key:
         if not isinstance(key_str, Key):
@@ -189,49 +256,40 @@ class SingleNumeral(ProtocolHarmony):
         else:
             key = key_str
 
-        # parse quality, in stack of thirds:
-        quality = "M" if s_numeral_match['roman_numeral'].isupper() else "m"
+        # parse quality, in stack of thirds: # TODO: rewrite this
+        quality = "M" if snp.roman_numeral.isupper() else "m"
 
         # parse degree:
-        degree_number = numeral_scale_degree_dict.get(s_numeral_match['roman_numeral'])  # TODO: account for Ger/Fr/It
-        modifiers = s_numeral_match['modifiers']
-        degree_alteration = SpelledPitchClass(f'C{modifiers}').alteration()
-        degree = Degree(number=degree_number, alteration=degree_alteration)
+        degree = Degree.parse_numeral_degree(numeral_degree=snp.roman_numeral)
 
-        # parse added_tones:
-        added_tones_match = s_numeral_match['added_tones']
-        if added_tones_match:
-            added_tones = [Degree.parse(scale_degree=x) for x in added_tones_match.split('+')[1:]]
+        # parse added_tones:# TODO: rewrite this
+        if '+' in snp.added_tones:
+            added_tones = [Degree.parse_arabic_degree(arabic_degree=x) for x in snp.added_tones.split('+')[1:]]
         else:
-            added_tones = None
+            seperated_added_tones_tuples = re.findall(r'([#b])?(9|1[0-4])', string=snp.added_tones)
+            seperated_added_tones = [''.join(x) for x in
+                                        seperated_added_tones_tuples]  # join the accidental and number for each seperated replaced tone
+            added_tones = [Degree.parse_arabic_degree(arabic_degree=x) for x in
+                                 seperated_added_tones]  # convert to Degree type
 
-        # replacement_tones:
-        replacement_tones_match = s_numeral_match['replacement_tones']
-        if replacement_tones_match:
-            seperated_replaced_tones_tuples = re.findall(r'([#b])?([2-8])', string=replacement_tones_match)
+        # replacement_tones: # TODO: double check the annotation tutorial (advanced section) for more complex cases
+        if snp.replacement_tones:
+            seperated_replaced_tones_tuples = re.findall(r'([#b])?([2-8])', string=snp.replacement_tones)
             seperated_replaced_tones = [''.join(x) for x in
                                         seperated_replaced_tones_tuples]  # join the accidental and number for each seperated replaced tone
-            replacement_tones = [Degree.parse(scale_degree=x) for x in
+            replacement_tones = [Degree.parse_arabic_degree(arabic_degree=x) for x in
                                  seperated_replaced_tones]  # convert to Degree type
         else:
             replacement_tones = None
 
         # parse figbass:
-        figbass_match = s_numeral_match['figbass']
-        if figbass_match:
-            ## Encoding version 1: interval from bass to root
-            # figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [6, 1, 3, 5], "43": [4, 6, 1, 3],
-            #                        "42": [2, 4, 6, 1], "2": [2, 4, 6, 1],
-            #                        "64": [4, 6, 1],
-            #                        "6": [6, 1, 3]}  # assume the first number x is: bass + x = root , 1 := unison
-
-            # Encoding version 2: interval from root to bass (inversion)
+        if snp.figbass:
             figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [3, 5, 7, 1], "43": [5, 7, 1, 3],
                                    "42": [7, 1, 3, 5], "2": [7, 1, 3, 5],
                                    "64": [5, 1, 3],
                                    "6": [3, 5, 1]}  # assume the first number x is: root + x = bass , 1 := unison
 
-            figbass = [Degree.parse(scale_degree=str(x)) for x in figbass_degree_dict.get(figbass_match)]
+            figbass = [Degree.parse_arabic_degree(arabic_degree=str(x)) for x in figbass_degree_dict.get(snp.figbass)]
 
         else:
             figbass = None
@@ -288,7 +346,7 @@ class SingleNumeral(ProtocolHarmony):
         pass
 
 
-T = typing.TypeVar('T')
+
 
 
 @dataclass
@@ -453,5 +511,8 @@ if __name__ == '__main__':
     # ic = SpelledIntervalClass('M2')
     # print(f'{bass_pc+ic=}')
 
-    result = IntervalThird(third='k3')
-    print(result)
+    #result = IntervalThird(third='k3')
+    #print(result)
+    print(NonZeroInt(-1))
+
+
