@@ -11,8 +11,11 @@ class Degree:
     number: int
     alteration: int | bool  # when int: positive for "#", negative for "b", when bool: represent whether to use natural
 
-    numeral_scale_degree_dict = typing.ClassVar[{"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
-                                                 "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}]
+    _numeral_scale_degree_dict = typing.ClassVar[{"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
+                                                  "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}]
+
+    _regex_arabic = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
+    _regex_roman = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IV|V?I{0,2}))$", re.I)
 
     def __add__(self, other: typing.Self) -> typing.Self:
         """
@@ -32,51 +35,24 @@ class Degree:
         return Degree(number=number, alteration=alteration)
 
     @classmethod
-    def parse_arabic_degree(cls, arabic_degree: str) -> typing.Self:
+    def parse(cls, degree_str: str) -> typing.Self:
         """
         Examples of arabic_degree: b7, #2, 3, 5, #5, ...
-        """
-        ad_regex = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
-        ad_match = ad_regex.match(arabic_degree)
-
-        if ad_match is None:
-            raise ValueError(f"could not match '{arabic_degree}' with regex: '{ad_regex.pattern}'")
-
-        number_match = ad_match['number']
-        modifiers_match = ad_match['modifiers']
-        alteration = len(modifiers_match) if '#' in modifiers_match else -len(modifiers_match)
-
-        # create class instance:
-        instance = cls(number=int(number_match), alteration=alteration)
-        return instance
-
-    @classmethod
-    def parse_numeral_degree(cls, numeral_degree: str) -> typing.Self:
-        """
         Examples of scale degree: bV, bIII, #II, IV, vi, vii
         """
-        nd_regex = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IV|V?I{0,3}))$", re.I)
-        nd_match = nd_regex.match(numeral_degree)
-
-        rn_match = nd_match['roman_numeral']
-        degree_number = Degree.numeral_scale_degree_dict.get(rn_match)  # TODO: account for Ger/Fr/It
-        modifiers_match = nd_match['modifiers']
-        degree_alteration = SpelledPitchClass(f'C{modifiers_match}').alteration()
-        instance = cls(number=degree_number, alteration=degree_alteration)
+        match = regex_spm.fullmatch_in(degree_str)
+        match match:
+            case cls._regex_roman:
+                degree_number = cls._numeral_scale_degree_dict.get(match['roman_numeral'])
+            case cls._regex_arabic:
+                degree_number = int(match['number'])
+            case _:
+                raise ValueError(f"could not match {match} with regex: {cls._regex_roman} or {cls._regex_arabic}")
+        modifiers_match = match['modifiers']
+        alteration = SpelledPitchClass(f'C{modifiers_match}').alteration()
+        instance = cls(number=degree_number, alteration=alteration)
         return instance
 
-
-def test_parse():
-    result = Degree.parse(scale_degree='##2')
-    print(result)
-
-
-@dataclass
-class Quality:
-    """Defined by the intervals between notes"""
-
-    stacksize: int
-    quality_list: typing.List[re.compile("^((M)|(m)|(a)+|(d)+)$")]
 
 
 class SingleNumeralRegex:
@@ -184,20 +160,48 @@ class SingleNumeralParts:
                        added_tones=added_tones,replacement_tones=replacement_tones)
         return instance
 
+@dataclass
+class P:
+    alt_steps: int
+
+
+@dataclass
+class IP:
+    def __init__(self, alt_steps: int):
+        if alt_steps == 0:
+            raise ValueError(f'{alt_steps=}')
+        self.alt_steps = alt_steps
+
 
 
 
 
 if __name__ == '__main__':
-    # test_regex_spm()
-    # snp = SingleNumeralParts.parse(numeral_str='bIII43(b9#13)')
-    # print(f'{snp=}')
 
-    regex = re.compile(r'(?P<modifiers>[b#]*)(?P<number>9|11|13)')
-    match_iter = regex.finditer('#9b13')
-    print([match[0] for match in match_iter])
+    types={
+        "major": r'(I|II|III|IV|V|VI|VII)',
+        "minor": r'(i|ii|iii|iv|v|vi|vii)',
+
+        "triad": r'(6|64)',
+        "tetrad": r'(7|65|43|42|2)'
+    }
 
 
+    rn = 'V'
+    quality = ''
+    figbass = '6'
+    assembled_snp = rn + quality + figbass
 
 
+    match = regex_spm.fullmatch_in(assembled_snp)
+
+    major_pattern = r'%s(major)%s(triad)'
+    major_patternR = re.compile(r'%(major)s %(triad)s' %types)
+
+    match match:
+        case major_patternR:  # major: Mm
+            interval_class_quality_list = [IP(1), IP(-1)]
+            print('THIS IS MAJOR')
+        case _:
+            raise ValueError
 
