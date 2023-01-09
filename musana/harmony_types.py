@@ -395,7 +395,8 @@ class SingleNumeral(ProtocolHarmony):
         """
         Make the current numeral as the tonic, return the spelled pitch class of the root as Key.
         """
-        key = Key(root=self.root(), mode=self.quality)  # TODO: quality as str or HarmonyQuality?
+        major_minor_key_mode = 'M' if (self.quality.interval_class_quality_list[0]==IP(1) and self.quality.interval_class_quality_list[1]==IP(-1)) else 'm'
+        key = Key(root=self.root(), mode=major_minor_key_mode)  # TODO: better version?
         return key
 
     def bass_degree(self) -> Degree:
@@ -428,7 +429,6 @@ class Numeral(Chain[SingleNumeral]):
         if "/" in numeral_str:
             L_numeral_str, R_numeral_str = numeral_str.split("/", maxsplit=1)
             R = cls.parse(key_str=key_str, numeral_str=R_numeral_str)
-            # todo: makesure the key works
             L = SingleNumeral.parse(key_str=R.head.key_if_tonicized(), numeral_str=L_numeral_str)
 
         else:
@@ -454,8 +454,7 @@ class TonalHarmony(ProtocolHarmony):
         instance = cls(globalkey=globalkey, numeral=compound_numeral,
                        bookeeping={'globalkey_str': globalkey_str,
                                    'localkey_numeral_str': localkey_numeral_str,
-                                   'chord_str': chord_str,
-                                   })
+                                   'chord_str': chord_str})
         return instance
 
     def pc_set(self) -> typing.List[SpelledPitchClass]:
@@ -481,11 +480,6 @@ class TonalHarmony(ProtocolHarmony):
 if __name__ == '__main__':
     # sn = SingleNumeral.parse(key_str='C', numeral_str='V42')
 
-    numeral = Numeral.parse(key_str='C', numeral_str='V7/V')
-    print(f'{numeral=}')
-
-    L = numeral.head
-    print(f'{L=}')
-
-    R = numeral.tail
-    print(f'{R=}')
+    th= TonalHarmony.parse(globalkey_str='C', localkey_numeral_str='I', chord_str='V7/V')
+    print(f'{th=}')
+    th.root()
