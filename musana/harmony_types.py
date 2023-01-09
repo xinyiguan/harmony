@@ -1,4 +1,3 @@
-# Created by Xinyi Guan in 2022.
 # Defining the harmony concepts.
 from __future__ import annotations
 
@@ -104,8 +103,8 @@ class Degree:
     number: int
     alteration: int | bool  # when int: positive for "#", negative for "b", when bool: represent whether to use natural
 
-    _numeral_scale_degree_dict = typing.ClassVar[{"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
-                                                  "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}]
+    _numeral_scale_degree_dict = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
+                                  "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
 
     _regex_arabic = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
     _regex_roman = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IV|V?I{0,2}))$", re.I)
@@ -147,19 +146,48 @@ class Degree:
         return instance
 
 
+class IntervalQuality:
+    @classmethod
+    @abstractmethod
+    def from_interval_class(cls, spelled_interval_class: SpelledIntervalClass) -> typing.Self:
+        pass
+
+
 @dataclass
-class P:
+class P(IntervalQuality):
+    """
+    This is a type class for perfect intervals
+    alt_steps = 0 means e.g. perfect unison, perfect fifths
+    alt_steps = 1 means aug 1 (A1), aug 5(A5), aug 4...
+    alt_steps = -1 means dim 1 (D1) ...
+    """
+
     alt_steps: int
 
+    @classmethod
+    def from_interval_class(cls, spelled_interval_class: SpelledIntervalClass) -> typing.Self:  # TODO: fill in
+        pass
+
 
 @dataclass
-class IP:
+class IP(IntervalQuality):
+    """
+    This is a type class for Imperfect intervals
+    alt_steps = 1 means M2, M3, M6 ...
+    alt_steps = 2 means A2, A3, A6 ...
+    alt_steps = 3 means AA2, AA3, ...
+    alt_steps = -1 means m2, m3, m6 ...
+    """
     alt_steps: int
 
     def __post_init__(self):
         if self.alt_steps == 0:
             raise ValueError(f'{self.alt_steps=}')
         self.alt_steps = self.alt_steps
+
+    @classmethod
+    def from_interval_class(cls, spelled_interval_class: SpelledIntervalClass) -> typing.Self:  # TODO: fill in
+        pass
 
 
 @dataclass
@@ -174,43 +202,37 @@ class HarmonyQuality:
     stack_size: int
     interval_class_quality_list: typing.List[P | IP]
 
+    _map_to_ic_qualities_3 = {(True, '+'): [1, 1],  # augmented triad
+                              (True, ''): [1, -1],  # major triad
+                              (False, ''): [-1, 1],  # minor triad
+                              (False, 'o'): [-1, -1]}  # diminished triad
 
-    _major_pattern = re.compile(r'(?P<major>I|II|III|IV|V|VI|VII)')
-    _minor_pattern = re.compile(r'(?P<minor>i|ii|iii|iv|v|vi|vii)')
-    _quality_pattern = re.compile(r'%|o|\+|M|\+M')
-    _triad_pattern = re.compile(r'(?P<triad>6|64)')
-    _tetrad_pattern = re.compile(r'(?P<tetrad>7|65|43|42|2)')
+    _map_to_ic_qualities_4 = {(True, '+M'): [1, 1, 1],  # aug major 7th
+                              (False, 'M'): [-1, 1, 1],  # minor major 7th
+                              (True, 'M'): [1, -1, 1],  # major major 7th
+                              (True, '+'): [1, 1, -1],  # aug minor 7th
+                              (False, '%'): [-1, -1, 1],  # half dim 7th
+                              (False, ''): [-1, 1, -1],  # minor minor 7th
+                              (True, ''): [1, -1, -1],  # dominant 7th
+                              (False, 'o'): [-1, -1, -1]}  # fully dim 7th
+
+    _which_dict = {3: _map_to_ic_qualities_3,
+                   4: _map_to_ic_qualities_4}
 
     @classmethod
-    def parse_snp(cls, snp: SingleNumeralParts) -> typing.Self:  # current version: parse as stack of thirds
-        """
-        Examples of eligible strings:
-        """
-        rn = snp.roman_numeral if snp.roman_numeral else ''
-        quality = snp.quality if snp.quality else ''
-        figbass = snp.figbass if snp.figbass else ''
-        assembled_snp = rn + quality + figbass
-
-        match = regex_spm.fullmatch_in(assembled_snp)
-
-        match match:
-            case cls._major_pattern:  # major: Mm
-
-                interval_class_quality_list = [IP(1), IP(-1)]
-            case cls._minor_pattern:  # minor: mM
-                interval_class_quality_list = [IP(-1), IP(1)]
-
-
-            case _:
-                raise ValueError()
-
-        instance = cls(stack_size=3, interval_class_quality_list=interval_class_quality_list)
+    def smart_init(cls, n_chord_tones: int, upper: bool,
+                   form_symbol: typing.Literal['o', '+', '%', 'M', '+M', '']) -> typing.Self:
+        dict_to_check = cls._which_dict[n_chord_tones]
+        ic_quality_list = [IP(x) for x in dict_to_check[(upper, form_symbol)]]
+        instance = cls(stack_size=3, interval_class_quality_list=ic_quality_list)
         return instance
 
 
 @dataclass
 class FiguredBass:
-    figured_bass: typing.List[Degree]
+    degrees: typing.List[Degree]
+
+    _regex_pattern = re.compile(r'(?P<figbass>(7|65|43|42|2|64|6))')
 
     _figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [3, 5, 7, 1], "43": [5, 7, 1, 3],
                             "42": [7, 1, 3, 5], "2": [7, 1, 3, 5],
@@ -218,10 +240,20 @@ class FiguredBass:
                             "6": [3, 5, 1]}  # assume the first number x is: root + x = bass , 1 := unison
 
     @classmethod
-    def parse(cls, figbass_str: str) -> typing.Self:
-        instance = cls(figured_bass=[Degree.parse(degree_str=str(x))
-                                     for x in FiguredBass._figbass_degree_dict.get(figbass_str)])
+    def parse(cls, figbass_str: str) -> typing.Self:  # TODO: revise with alteration, add a dict to parse
+        match = regex_spm.match_in(figbass_str)
+        match match:
+            case cls._regex_pattern:
+                instance = cls(degrees=[Degree.parse(degree_str=str(x))
+                                        for x in FiguredBass._figbass_degree_dict.get(figbass_str)])
+            case _:  # otherwise, assume root position triad
+                instance = cls(degrees=[Degree(number=1, alteration=0),
+                                        Degree(number=3, alteration=0),
+                                        Degree(number=5, alteration=0)])
         return instance
+
+    def n_chord_tones(self) -> int:
+        return len(self.degrees)
 
 
 @dataclass
@@ -240,8 +272,7 @@ class AddedTones:
             case cls._regex_pattern_2:
                 match_iter = re.finditer(cls._regex_pattern_2, string=added_tones_str)
             case _:
-                raise ValueError(
-                    f"could not match {match} with regex: {cls._regex_pattern_1} or {cls._regex_pattern_2}")
+                return None
 
         added_tones = [Degree.parse(degree_str=match[0]) for match in match_iter]
         instance = cls(added_tones=added_tones)
@@ -252,11 +283,16 @@ class AddedTones:
 class ReplacementTones:
     replacement_tones: typing.List[Degree]
 
-    _regex_pattern = re.compile(r'(?P<modifiers>[#b])?(?P<number>[246])')
+    _regex_pattern = re.compile(r'(?P<modifiers>[#b])?(?P<number>[0246])')
 
     @classmethod
     def parse(cls, replacement_tones_str: str) -> typing.Self:
-        match_iter = re.finditer(cls._regex_pattern, string=replacement_tones_str)
+        match = regex_spm.match_in(replacement_tones_str)
+        match match:
+            case cls._regex_pattern:
+                match_iter = re.finditer(cls._regex_pattern, string=replacement_tones_str)
+            case _:
+                return None
         replacement_tones = [Degree.parse(degree_str=match[0]) for match in match_iter]
         instance = cls(replacement_tones=replacement_tones)
         return instance
@@ -266,7 +302,7 @@ class ReplacementTones:
 class SingleNumeralParts:
     roman_numeral: str
     modifiers: str | None
-    quality: str | None
+    form: str | None
     figbass: str | None
     added_tones: str | None
     replacement_tones: str | None
@@ -274,7 +310,7 @@ class SingleNumeralParts:
     # the regular expression conforms with the DCML annotation standards
     _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))?"  # accidentals
                            "(?P<roman_numeral>(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))"  # roman numeral
-                           "(?P<quality>(%|o|\+|M|\+M))?"  # quality form
+                           "(?P<form>(%|o|\+|M|\+M))?"  # quality form
                            "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
                            "(\("
                            "((?P<added_tones>((\+)([#b])?([2-8]))+|(([#b])?(9|1[0-4]))+)?|"  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
@@ -289,13 +325,13 @@ class SingleNumeralParts:
             raise ValueError(f"could not match '{numeral_str}' with regex: '{SingleNumeralParts._sn_regex.pattern}'")
 
         roman_numeral = s_numeral_match['roman_numeral']
-        modifiers = s_numeral_match['modifiers'] if s_numeral_match['modifiers'] else None
-        quality = s_numeral_match['quality'] if s_numeral_match['quality'] else None
-        figbass = s_numeral_match['figbass'] if s_numeral_match['figbass'] else None
-        added_tones = s_numeral_match['added_tones'] if s_numeral_match['added_tones'] else None
-        replacement_tones = s_numeral_match['replacement_tones'] if s_numeral_match['replacement_tones'] else None
+        modifiers = s_numeral_match['modifiers'] if s_numeral_match['modifiers'] else ''
+        form = s_numeral_match['form'] if s_numeral_match['form'] else ''
+        figbass = s_numeral_match['figbass'] if s_numeral_match['figbass'] else ''
+        added_tones = s_numeral_match['added_tones'] if s_numeral_match['added_tones'] else ''
+        replacement_tones = s_numeral_match['replacement_tones'] if s_numeral_match['replacement_tones'] else ''
 
-        instance = cls(modifiers=modifiers, roman_numeral=roman_numeral, quality=quality, figbass=figbass,
+        instance = cls(modifiers=modifiers, roman_numeral=roman_numeral, form=form, figbass=figbass,
                        added_tones=added_tones, replacement_tones=replacement_tones)
         return instance
 
@@ -311,10 +347,10 @@ class SnpParsable(typing.Protocol):
 class SingleNumeral(ProtocolHarmony):
     key: Key
     degree: Degree
-    quality: HarmonyQuality  # 4 triad qualities and 6 seventh chord qualities
-    figbass: FiguredBass | None
-    added_tones: AddedTones | None
-    replacement_tones: ReplacementTones | None
+    quality: HarmonyQuality
+    figbass: FiguredBass
+    added_tones: AddedTones
+    replacement_tones: ReplacementTones
 
     @classmethod
     def parse(cls, key_str: str | Key, numeral_str: str) -> typing.Self:
@@ -327,9 +363,6 @@ class SingleNumeral(ProtocolHarmony):
         else:
             key = key_str
 
-        # parse quality, in stack of thirds: # TODO: rewrite this
-        quality = HarmonyQuality.parse_snp(snp=snp)
-
         # parse degree:
         degree = Degree.parse(degree_str=snp.roman_numeral)
 
@@ -341,6 +374,10 @@ class SingleNumeral(ProtocolHarmony):
 
         # parse figbass:
         figbass = FiguredBass.parse(figbass_str=snp.figbass)
+
+        # parse quality, in stack of thirds:
+        quality = HarmonyQuality.smart_init(n_chord_tones=figbass.n_chord_tones(), upper=snp.roman_numeral.isupper(),
+                                            form_symbol=snp.form)
 
         # create class instance:
         instance = cls(key=key,
@@ -362,7 +399,7 @@ class SingleNumeral(ProtocolHarmony):
         return key
 
     def bass_degree(self) -> Degree:
-        bass_degree = self.degree + self.figbass.figured_bass[0]  # TODO: set alias?
+        bass_degree = self.degree + self.figbass.degrees[0]
         return bass_degree
 
     def bass_pc(self) -> SpelledPitchClass:
@@ -373,7 +410,7 @@ class SingleNumeral(ProtocolHarmony):
         raise NotImplementedError
 
     def pc_set(self) -> typing.List[SpelledPitchClass]:
-        pass
+        raise NotImplementedError
 
 
 @dataclass
@@ -383,8 +420,6 @@ class Chain(typing.Generic[T]):
 
 
 class Numeral(Chain[SingleNumeral]):
-    numeral_regex = re.compile(
-        "^(?P<numeral>[b#]*(?:VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))(?P<form>%|o|\+|M|\+M)?(?P<figbass>7|65|43|42|2|64|6)?(?:\((?P<changes>(?:[\+-\^v]?[b#]*\d)+)\))?(?:/(?P<relativeroot>(?:[b#]*(?:VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i)/?)*))?$")
 
     @classmethod
     def parse(cls, key_str: str, numeral_str: str) -> typing.Self:
@@ -444,13 +479,13 @@ class TonalHarmony(ProtocolHarmony):
 
 
 if __name__ == '__main__':
-    snp = SingleNumeralParts.parse('V')
-    print(f'{snp=}')
-    hq = HarmonyQuality.parse_snp(snp=snp)
-    print(f'{hq=}')
+    # sn = SingleNumeral.parse(key_str='C', numeral_str='V42')
 
-    # ip = IP(0)
-    # print(f'{ip=}')
-    #
-    # p = P(1)
-    # print(f'{p=}')
+    numeral = Numeral.parse(key_str='C', numeral_str='V7/V')
+    print(f'{numeral=}')
+
+    L = numeral.head
+    print(f'{L=}')
+
+    R = numeral.tail
+    print(f'{R=}')

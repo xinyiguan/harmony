@@ -1,4 +1,3 @@
-# Created by Xinyi Guan in 2022.
 from __future__ import annotations
 
 import os
