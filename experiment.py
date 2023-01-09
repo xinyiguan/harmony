@@ -1,4 +1,3 @@
-# Created by Xinyi Guan in 2023.
 import re
 import typing
 from dataclasses import dataclass
@@ -176,15 +175,20 @@ class IP:
 
 
 
+
 if __name__ == '__main__':
 
-    types={
-        "major": r'(I|II|III|IV|V|VI|VII)',
-        "minor": r'(i|ii|iii|iv|v|vi|vii)',
+    _major_root_pattern = r'(?P<major>I|II|III|IV|V|VI|VII)'
+    _minor_root_pattern = r'(?P<minor>i|ii|iii|iv|v|vi|vii)'
 
-        "triad": r'(6|64)',
-        "tetrad": r'(7|65|43|42|2)'
-    }
+    _aug_pattern = r'(\+)'
+    _half_dim_pattern = r'(%)'
+    _dim_pattern = r'(o)'
+    _major7_pattern = r'(M)'
+    _aug_major7_pattern = r'(+M)'
+
+    _triad_inversion = r'(?P<triad>6|64)?'
+    _tetrad_inversion = r'(?P<tetrad>7|65|43|42|2)'
 
 
     rn = 'V'
@@ -194,14 +198,16 @@ if __name__ == '__main__':
 
 
     match = regex_spm.fullmatch_in(assembled_snp)
-
-    major_pattern = r'%s(major)%s(triad)'
-    major_patternR = re.compile(r'%(major)s %(triad)s' %types)
+    major_cond = re.compile(_major_pattern + _triad_pattern)
+    dom7 = re.compile(_major_pattern + _tetrad_pattern)
 
     match match:
-        case major_patternR:  # major: Mm
+        case dom7: # dominant seventh
             interval_class_quality_list = [IP(1), IP(-1)]
-            print('THIS IS MAJOR')
-        case _:
-            raise ValueError
+
+        case major_cond:  # major: Mm
+                interval_class_quality_list = [IP(1), IP(-1)]
+                print('THIS IS MAJOR')
+            case _:
+                raise ValueError
 
