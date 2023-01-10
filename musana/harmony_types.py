@@ -386,16 +386,16 @@ class SingleNumeral(ProtocolHarmony):
         return instance
 
     def root(self) -> SpelledPitchClass:
-
         root = self.key.find_pc(self.degree)
-
         return root
 
     def key_if_tonicized(self) -> Key:
         """
         Make the current numeral as the tonic, return the spelled pitch class of the root as Key.
         """
-        major_minor_key_mode = 'M' if (self.quality.interval_class_quality_list[0]==IP(1) and self.quality.interval_class_quality_list[1]==IP(-1)) else 'm'
+        major_minor_key_mode = 'M' if (
+                    self.quality.interval_class_quality_list[0] == IP(1) and self.quality.interval_class_quality_list[
+                1] == IP(-1)) else 'm'
         key = Key(root=self.root(), mode=major_minor_key_mode)  # TODO: better version?
         return key
 
@@ -480,6 +480,6 @@ class TonalHarmony(ProtocolHarmony):
 if __name__ == '__main__':
     # sn = SingleNumeral.parse(key_str='C', numeral_str='V42')
 
-    th= TonalHarmony.parse(globalkey_str='C', localkey_numeral_str='I', chord_str='V7/V')
+    th = TonalHarmony.parse(globalkey_str='C', localkey_numeral_str='I', chord_str='V7/V')
     print(f'{th=}')
     th.root()
