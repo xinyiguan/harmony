@@ -239,6 +239,17 @@ class ChordBigramsAnalysis:
     def phik_corr(self):
         raise NotImplementedError
 
+    # new measures: ------
+    def directionality(self) -> float:
+        count_ab = ...
+        count_ba = ...
+
+        z: complex = count_ab + count_ba * 1j
+        theta = np.angle(z)
+        directionality = np.abs((4 * theta) / np.pi - 1)
+
+        return directionality
+
 
 class ChordAnalysis:
 
@@ -266,11 +277,3 @@ if __name__ == '__main__':
 
     bigram_analysis = ChordBigramsAnalysis(bigram_tuples_sequential=bigrams)
 
-    bigram_analysis.relative_frequency(top_n=None)
-
-    # cond_sym = sym.fabian_symmetry_measures_matrix()
-
-    # my_sym = sym.mode_symmetry_measure_conditional_prob_version()
-    # fabian_sym = sym.fabian_mode_symmetry_measures()
-    # print(f'{my_sym=}')
-    # print(f'{fabian_sym=}')

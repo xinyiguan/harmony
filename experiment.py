@@ -1,6 +1,8 @@
 import re
 import typing
 from dataclasses import dataclass
+
+import numpy as np
 import regex_spm
 from pitchtypes import SpelledPitchClass, SpelledIntervalClass
 
@@ -51,7 +53,6 @@ class Degree:
         alteration = SpelledPitchClass(f'C{modifiers_match}').alteration()
         instance = cls(number=degree_number, alteration=alteration)
         return instance
-
 
 
 class SingleNumeralRegex:
@@ -140,24 +141,25 @@ class SingleNumeralParts:
                            "((?P<added_tones>((\+)([#b])?([2-8]))+|(([#b])?(9|1[0-4]))+)?|"  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
                            "(?P<replacement_tones>(([#b])?([2-8]))+)?)"  # replaced chord tones expressed through intervals <= 8
                            "\))?$")
-    @classmethod
-    def parse(cls,numeral_str: str) -> typing.Self:
 
+    @classmethod
+    def parse(cls, numeral_str: str) -> typing.Self:
         # match with regex
         s_numeral_match = SingleNumeralParts._sn_regex.match(numeral_str)
         if s_numeral_match is None:
             raise ValueError(f"could not match '{numeral_str}' with regex: '{SingleNumeralParts._sn_regex.pattern}'")
 
         roman_numeral = s_numeral_match['roman_numeral']
-        modifiers =  s_numeral_match['modifiers'] if s_numeral_match['modifiers'] else ''
+        modifiers = s_numeral_match['modifiers'] if s_numeral_match['modifiers'] else ''
         form = s_numeral_match['form'] if s_numeral_match['form'] else ''
         figbass = s_numeral_match['figbass'] if s_numeral_match['figbass'] else ''
         added_tones = s_numeral_match['added_tones'] if s_numeral_match['added_tones'] else ''
         replacement_tones = s_numeral_match['replacement_tones'] if s_numeral_match['replacement_tones'] else ''
 
         instance = cls(modifiers=modifiers, roman_numeral=roman_numeral, form=form, figbass=figbass,
-                       added_tones=added_tones,replacement_tones=replacement_tones)
+                       added_tones=added_tones, replacement_tones=replacement_tones)
         return instance
+
 
 @dataclass
 class P:
@@ -172,42 +174,14 @@ class IP:
         self.alt_steps = alt_steps
 
 
-
-
-
-
 if __name__ == '__main__':
+    count_ab = 100
+    count_ba = 1
 
-    _major_root_pattern = r'(?P<major>I|II|III|IV|V|VI|VII)'
-    _minor_root_pattern = r'(?P<minor>i|ii|iii|iv|v|vi|vii)'
+    z: complex = count_ab + count_ba * 1j
 
-    _aug_pattern = r'(\+)'
-    _half_dim_pattern = r'(%)'
-    _dim_pattern = r'(o)'
-    _major7_pattern = r'(M)'
-    _aug_major7_pattern = r'(+M)'
+    theta = np.angle(z)
 
-    _triad_inversion = r'(?P<triad>6|64)?'
-    _tetrad_inversion = r'(?P<tetrad>7|65|43|42|2)'
+    directionality = np.abs((4 * theta) / np.pi - 1)
 
-
-    rn = 'V'
-    quality = ''
-    figbass = '6'
-    assembled_snp = rn + quality + figbass
-
-
-    match = regex_spm.fullmatch_in(assembled_snp)
-    major_cond = re.compile(_major_pattern + _triad_pattern)
-    dom7 = re.compile(_major_pattern + _tetrad_pattern)
-
-    match match:
-        case dom7: # dominant seventh
-            interval_class_quality_list = [IP(1), IP(-1)]
-
-        case major_cond:  # major: Mm
-                interval_class_quality_list = [IP(1), IP(-1)]
-                print('THIS IS MAJOR')
-            case _:
-                raise ValueError
-
+    print(f'{directionality=}')
