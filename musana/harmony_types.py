@@ -29,6 +29,20 @@ class SpelledPitchClass(_SpelledPitchClass):
         return interval_class
 
 
+class HarmonyRegexes:
+    """a class to hold all the regular expressions in the harmony string input"""
+
+    key_regex = re.compile("^(?P<class>[A-G])(?P<modifiers>(b*)|(#*))$", re.I)  # case-insensitive
+
+    arabic_degree_regex = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>(\d+)))$")
+    roman_degree_regex = re.compile("^(?P<modifiers>(b*)|(#*))?(?P<roman_numeral>(IV|V?I{0,2}))$", re.I)
+
+    figuredbass_regex = re.compile(r'(?P<figbass>(7|65|43|42|2|64|6))')
+
+    added_tone_regex = re.compile(
+        r'(\+[#b]*\d*)')  # TODO: ?? Added tones are always preceded by '+'?? #TODO: double check the standards?
+
+
 class ProtocolHarmony(typing.Protocol):
     @abstractmethod
     def root(self) -> SpelledPitchClass:
@@ -58,13 +72,11 @@ class Key:
     @classmethod
     def parse(cls, key_str: str) -> Key:
 
-        _key_regex = re.compile("^(?P<class>[A-G])(?P<modifiers>(b*)|(#*))$", re.I)  # case-insensitive
-
         if not isinstance(key_str, str):
             raise TypeError(f"expected string as input, got {key_str}")
-        key_match = _key_regex.match(key_str)
+        key_match = HarmonyRegexes.key_regex.fullmatch(key_str)
         if key_match is None:
-            raise ValueError(f"could not match '{key_str}' with regex: '{_key_regex.pattern}'")
+            raise ValueError(f"could not match '{key_str}' with regex: '{HarmonyRegexes.key_regex.pattern}'")
         mode = 'M' if key_match['class'].isupper() else 'm'
         root = SpelledPitchClass(key_match['class'].upper() + key_match['modifiers'])
         instance = cls(root=root, mode=mode)
@@ -106,9 +118,6 @@ class Degree:
     _numeral_scale_degree_dict = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
                                   "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
 
-    _regex_arabic = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
-    _regex_roman = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IV|V?I{0,2}))$", re.I)
-
     def __add__(self, other: typing.Self) -> typing.Self:
         """
         n steps (0 steps is unison) <-- degree (1 is unison)
@@ -132,14 +141,15 @@ class Degree:
         Examples of arabic_degree: b7, #2, 3, 5, #5, ...
         Examples of scale degree: bV, bIII, #II, IV, vi, vii
         """
-        match = regex_spm.fullmatch_in(degree_str)
+        match = regex_spm.match_in(degree_str)
         match match:
-            case cls._regex_roman:
+            case HarmonyRegexes.roman_degree_regex:
                 degree_number = cls._numeral_scale_degree_dict.get(match['roman_numeral'])
-            case cls._regex_arabic:
+            case HarmonyRegexes.arabic_degree_regex:
                 degree_number = int(match['number'])
             case _:
-                raise ValueError(f"could not match {match} with regex: {cls._regex_roman} or {cls._regex_arabic}")
+                raise ValueError(
+                    f"could not match {match} with regex: {HarmonyRegexes.roman_degree_regex} or {HarmonyRegexes.arabic_degree_regex}")
         modifiers_match = match['modifiers']
         alteration = SpelledPitchClass(f'C{modifiers_match}').alteration()
         instance = cls(number=degree_number, alteration=alteration)
@@ -232,8 +242,6 @@ class HarmonyQuality:
 class FiguredBass:
     degrees: typing.List[Degree]
 
-    _regex_pattern = re.compile(r'(?P<figbass>(7|65|43|42|2|64|6))')
-
     _figbass_degree_dict = {"7": [1, 3, 5, 7], "65": [3, 5, 7, 1], "43": [5, 7, 1, 3],
                             "42": [7, 1, 3, 5], "2": [7, 1, 3, 5],
                             "64": [5, 1, 3],
@@ -241,9 +249,9 @@ class FiguredBass:
 
     @classmethod
     def parse(cls, figbass_str: str) -> typing.Self:  # TODO: revise with alteration, add a dict to parse
-        match = regex_spm.match_in(figbass_str)
+        match = regex_spm.fullmatch_in(figbass_str)
         match match:
-            case cls._regex_pattern:
+            case HarmonyRegexes.figuredbass_regex:
                 instance = cls(degrees=[Degree.parse(degree_str=str(x))
                                         for x in FiguredBass._figbass_degree_dict.get(figbass_str)])
             case _:  # otherwise, assume root position triad
@@ -258,25 +266,21 @@ class FiguredBass:
 
 @dataclass
 class AddedTones:
-    added_tones: typing.List[Degree]
-
-    _regex_pattern_1 = re.compile(r'(?P<plus>(\+))(?P<modifiers>[#b])?(?P<number>[246])')
-    _regex_pattern_2 = re.compile(r'(?P<modifiers>[b#]*)(?P<number>9|11|13)')
+    degrees: typing.List[Degree]
 
     @classmethod
     def parse(cls, added_tones_str: str) -> typing.Self:
         match = regex_spm.match_in(added_tones_str)
+
         match match:
-            case cls._regex_pattern_1:
-                match_iter = re.finditer(cls._regex_pattern_1, string=added_tones_str)
-            case cls._regex_pattern_2:
-                match_iter = re.finditer(cls._regex_pattern_2, string=added_tones_str)
+            case HarmonyRegexes.added_tone_regex:
+                match_iter = re.finditer(HarmonyRegexes.added_tone_regex, string=added_tones_str)
+                degrees = [Degree.parse(degree_str=match[0].replace('+', '')) for match in match_iter]
+                instance = cls(degrees=degrees)
+                return instance
             case _:
                 return None
 
-        added_tones = [Degree.parse(degree_str=match[0]) for match in match_iter]
-        instance = cls(added_tones=added_tones)
-        return instance
 
 
 @dataclass
@@ -301,11 +305,11 @@ class ReplacementTones:
 @dataclass
 class SingleNumeralParts:
     roman_numeral: str
-    modifiers: str | None
-    form: str | None
-    figbass: str | None
-    added_tones: str | None
-    replacement_tones: str | None
+    modifiers: str
+    form: str
+    figbass: str
+    added_tones: str
+    replacement_tones: str
 
     # the regular expression conforms with the DCML annotation standards
     _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))?"  # accidentals
@@ -313,9 +317,9 @@ class SingleNumeralParts:
                            "(?P<form>(%|o|\+|M|\+M))?"  # quality form
                            "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
                            "(\("
-                           "((?P<added_tones>((\+)([#b])?([2-8]))+|(([#b])?(9|1[0-4]))+)?|"  # added tones, non-chord tones added within parentheses and preceded by a "+" or >8
+                           "((?P<added_tones>((\+[#b]*\d*))?|"  # added tones, non-chord tones added within parentheses and preceded by a "+"
                            "(?P<replacement_tones>(([#b])?([2-8]))+)?)"  # replaced chord tones expressed through intervals <= 8
-                           "\))?$")
+                           "\))?$)")
 
     @classmethod
     def parse(cls, numeral_str: str) -> typing.Self:
@@ -394,8 +398,8 @@ class SingleNumeral(ProtocolHarmony):
         Make the current numeral as the tonic, return the spelled pitch class of the root as Key.
         """
         major_minor_key_mode = 'M' if (
-                    self.quality.interval_class_quality_list[0] == IP(1) and self.quality.interval_class_quality_list[
-                1] == IP(-1)) else 'm'
+                self.quality.interval_class_quality_list[0] == IP(1) and self.quality.interval_class_quality_list[
+            1] == IP(-1)) else 'm'
         key = Key(root=self.root(), mode=major_minor_key_mode)  # TODO: better version?
         return key
 
@@ -478,8 +482,5 @@ class TonalHarmony(ProtocolHarmony):
 
 
 if __name__ == '__main__':
-    # sn = SingleNumeral.parse(key_str='C', numeral_str='V42')
-
-    th = TonalHarmony.parse(globalkey_str='C', localkey_numeral_str='I', chord_str='V7/V')
-    print(f'{th=}')
-    th.root()
+    sn = SingleNumeral.parse(key_str='C', numeral_str='V42(+6+13)')
+    print(f'{sn=}')

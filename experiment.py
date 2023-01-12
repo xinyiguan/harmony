@@ -15,9 +15,6 @@ class Degree:
     _numeral_scale_degree_dict = typing.ClassVar[{"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
                                                   "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}]
 
-    _regex_arabic = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
-    _regex_roman = re.compile("^(?P<modifiers>(b*)|(#*))(?P<roman_numeral>(IV|V?I{0,2}))$", re.I)
-
     def __add__(self, other: typing.Self) -> typing.Self:
         """
         n steps (0 steps is unison) <-- degree (1 is unison)
@@ -86,33 +83,6 @@ def test():
     # def regex_matching_condition(group_name):
     #     return s_numeral_match.get(group_name, '')
 
-    regex_matching_condition = lambda group_name: s_numeral_match[group_name] if s_numeral_match[group_name] else ''
-
-    modifiers = regex_matching_condition('modifiers')
-    roman_numeral = regex_matching_condition('roman_numeral')
-    form = regex_matching_condition('form')
-    figbass = regex_matching_condition('figbass')
-    added_tones = regex_matching_condition('added_tones')
-    replacement_tones = regex_matching_condition('replacement_tones')
-
-    cond_M = roman_numeral.isupper() and figbass in ['', '6', '64']
-    cond_m = ...
-    cond_dim = ...
-    cond_aug = ...
-
-    cond_M7 = ...
-    cond_7 = ...
-    cond_m7 = ...
-    cond_half_dim7 = ...
-    cond_dim7 = ...
-    cond_aug7 = ...
-
-    quality_in_thirds_dict = {
-        cond_M: ['M', 'm'], cond_m: ['m', 'M'], cond_dim: ['m', 'm'], cond_aug: ['M', 'M'],
-        cond_M7: ['M', 'm', 'M'], cond_7: ['M', 'm', 'm'], cond_m7: ['m', 'M', 'm'],
-        cond_half_dim7: ['m', 'm', 'M'], cond_dim7: ['m', 'm', 'm'], cond_aug7: ['M', 'M', 'd']
-    }
-
 
 def test_regex_spm():
     match regex_spm.fullmatch_in("123,45"):
@@ -173,15 +143,16 @@ class IP:
             raise ValueError(f'{alt_steps=}')
         self.alt_steps = alt_steps
 
+class HarmonyRegexes:
+    """a class to hold all the regular expressions in the harmony string input"""
+
+    key_regex = re.compile("^(?P<class>[A-G])(?P<modifiers>(b*)|(#*))$", re.I)  # case-insensitive
+
+    arabic_degree_regex = re.compile("^((?P<modifiers>(b*)|(#*))?(?P<number>([0-9]+)))$")
+    roman_degree_regex = re.compile("^(?P<modifiers>(b*)|(#*))?(?P<roman_numeral>(IV|V?I{0,2}))$", re.I)
+
+    figuredbass_regex = re.compile(r'(?P<figbass>(7|65|43|42|2|64|6))')
+
+    added_tone_regex = re.compile(r'((?P<plus>\+)(?P<modifiers>(#)*|(b)*)?(?P<number>\d*))+')   # TODO: ?? Added tones are always preceded by '+'?? #TODO: double check the standards?
 
 if __name__ == '__main__':
-    count_ab = 100
-    count_ba = 1
-
-    z: complex = count_ab + count_ba * 1j
-
-    theta = np.angle(z)
-
-    directionality = np.abs((4 * theta) / np.pi - 1)
-
-    print(f'{directionality=}')
