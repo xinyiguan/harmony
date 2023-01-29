@@ -155,4 +155,12 @@ class HarmonyRegexes:
 
     added_tone_regex = re.compile(r'((?P<plus>\+)(?P<modifiers>(#)*|(b)*)?(?P<number>\d*))+')   # TODO: ?? Added tones are always preceded by '+'?? #TODO: double check the standards?
 
+
+
+
+
 if __name__ == '__main__':
+    roman_degree_regex = re.compile("^(?P<modifiers>(#)*|(b)*)?(?P<roman_numeral>([VI]+))$", re.I)
+
+    result = roman_degree_regex.match(string='#vi')
+    print(f'{result=}')
