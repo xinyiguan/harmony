@@ -184,10 +184,10 @@ class P(IntervalQuality):
 @dataclass
 class IP(IntervalQuality):
     """
-    This is a type class for imperfect intervals
+    This is a type class for Imperfect intervals
     alt_steps = 1 means M2, M3, M6 ...
-    alt_steps = 2 means a2, a3, a6 ...
-    alt_steps = 3 means aa2, aa3, ...
+    alt_steps = 2 means A2, A3, A6 ...
+    alt_steps = 3 means AA2, AA3, ...
     alt_steps = -1 means m2, m3, m6 ...
     """
     alt_steps: int
@@ -199,15 +199,7 @@ class IP(IntervalQuality):
 
     @classmethod
     def from_interval_class(cls, spelled_interval_class: SpelledIntervalClass) -> typing.Self:  # TODO: fill in
-        # check if input makes sense:
-
-        alt_steps = ...
-
-        instance = cls(alt_steps=alt_steps)
-        return instance
-
-    def to_interval_class(self) -> SpelledIntervalClass:
-        raise NotImplementedError
+        pass
 
 
 @dataclass
@@ -246,9 +238,6 @@ class HarmonyQuality:
         ic_quality_list = [IP(x) for x in dict_to_check[(upper, form_symbol)]]
         instance = cls(stack_size=3, interval_class_quality_list=ic_quality_list)
         return instance
-
-    def to_spelledintervalclass(self, root: SpelledPitchClass) -> typing.List[SpelledIntervalClass]:
-        raise NotImplementedError
 
 
 @dataclass
@@ -384,7 +373,7 @@ class SingleNumeral(ProtocolHarmony):
             key = key_str
 
         # parse degree:
-        degree = Degree.parse(degree_str=snp.modifiers + snp.roman_numeral)
+        degree = Degree.parse(degree_str=snp.modifiers+snp.roman_numeral)
 
         # parse added_tones: # TODO: double check the annotation tutorial (advanced section) for more complex cases
         added_tones = AddedTones.parse(added_tones_str=snp.added_tones)
@@ -428,10 +417,7 @@ class SingleNumeral(ProtocolHarmony):
         return pc
 
     def chord_tones(self) -> typing.List[SpelledPitchClass]:
-        roman_numeral_bass_pc = self.key.find_pc(degree=self.degree)
-
-        print(f'{roman_numeral_bass_pc=}')
-        print(f'{self.quality=}')
+        raise NotImplementedError
 
     def pc_set(self) -> typing.List[SpelledPitchClass]:
         raise NotImplementedError
@@ -451,14 +437,14 @@ class Numeral(Chain[SingleNumeral]):
 
         if "/" in numeral_str:
             L_numeral_str, R_numeral_str = numeral_str.split("/", maxsplit=1)
-            tail = cls.parse(key_str=key_str, numeral_str=R_numeral_str)
-            head = SingleNumeral.parse(key_str=tail.head.key_if_tonicized(), numeral_str=L_numeral_str)
+            R = cls.parse(key_str=key_str, numeral_str=R_numeral_str)
+            L = SingleNumeral.parse(key_str=R.head.key_if_tonicized(), numeral_str=L_numeral_str)
 
         else:
-            head = SingleNumeral.parse(key_str=key_str, numeral_str=numeral_str)
-            tail = None
+            L = SingleNumeral.parse(key_str=key_str, numeral_str=numeral_str)
+            R = None
 
-        instance = cls(head=head, tail=tail)
+        instance = cls(head=L, tail=R)
         return instance
 
 
@@ -466,14 +452,18 @@ class Numeral(Chain[SingleNumeral]):
 class TonalHarmony(ProtocolHarmony):
     globalkey: Key
     numeral: Numeral
+    bookeeping: typing.Dict[str, str]  # for bookkeeping
 
     @classmethod
-    def parse_dcml(cls, globalkey_str: str, localkey_numeral_str: str, chord_str: str) -> typing.Self:
+    def parse(cls, globalkey_str: str, localkey_numeral_str: str, chord_str: str) -> typing.Self:
         # chord_str examples: "IV(+6)", "vii%7/IV", "ii64"
         globalkey = Key.parse(key_str=globalkey_str)
         localkey = Numeral.parse(key_str=globalkey_str, numeral_str=localkey_numeral_str).head.key_if_tonicized()
         compound_numeral = Numeral.parse(key_str=localkey.to_str(), numeral_str=chord_str)
-        instance = cls(globalkey=globalkey, numeral=compound_numeral)
+        instance = cls(globalkey=globalkey, numeral=compound_numeral,
+                       bookeeping={'globalkey_str': globalkey_str,
+                                   'localkey_numeral_str': localkey_numeral_str,
+                                   'chord_str': chord_str})
         return instance
 
     def pc_set(self) -> typing.List[SpelledPitchClass]:
@@ -489,17 +479,15 @@ class TonalHarmony(ProtocolHarmony):
     def to_numeral(self) -> Numeral:
         pass
 
-    def chord_tones_pc(self) -> typing.List[SpelledPitchClass]:
+    def chord_tones(self) -> typing.List[SpelledPitchClass]:
         pass
 
-    def added_tones_pc(self) -> typing.List[SpelledPitchClass]:
+    def added_tones(self) -> typing.List[SpelledPitchClass]:
         pass
 
 
 if __name__ == '__main__':
     # result = Numeral.parse(key_str='C', numeral_str='V7(v#9)/IV/III')
-    numeral = SingleNumeral.parse(key_str='C', numeral_str='ii')
-    result = numeral.chord_tones()
-    print(f'{result=}')
+    result = TonalHarmony.parse(globalkey_str='C', localkey_numeral_str='I', chord_str='V').root()
 
-    # print(f'{result=}')
+    print(f'{result=}')
