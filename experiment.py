@@ -160,7 +160,7 @@ class HarmonyRegexes:
 
 
 if __name__ == '__main__':
-    roman_degree_regex = re.compile("^(?P<modifiers>(#)*|(b)*)?(?P<roman_numeral>([VI]+))$", re.I)
+    spc = SpelledPitchClass(value='C')
 
-    result = roman_degree_regex.match(string='#vi')
+    result = spc+SpelledIntervalClass(value='m3')
     print(f'{result=}')
