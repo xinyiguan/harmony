@@ -155,4 +155,12 @@ class HarmonyRegexes:
 
     added_tone_regex = re.compile(r'((?P<plus>\+)(?P<modifiers>(#)*|(b)*)?(?P<number>\d*))+')   # TODO: ?? Added tones are always preceded by '+'?? #TODO: double check the standards?
 
+
+
+
+
 if __name__ == '__main__':
+    spc = SpelledPitchClass(value='C')
+
+    result = spc+SpelledIntervalClass(value='m3')
+    print(f'{result=}')
