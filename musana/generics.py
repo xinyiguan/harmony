@@ -86,6 +86,9 @@ class Sequential(typing.Generic[T]):
         return transition_matrix
 
 
+
+
+
 ST = Sequential[typing.Tuple]
 
 

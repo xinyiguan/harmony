@@ -56,6 +56,9 @@ class SequentialData(ABC):
     def len(self):
         return self._series.shape[0]
 
+    def sum(self):
+        return self._series.sum()
+
     def count(self):
         """Count the occurrences of objects in the sequence"""
         value_count = pd.value_counts(self._series)
@@ -211,18 +214,18 @@ class PieceInfo:
         piece_name_SeqData: SequentialData = SequentialData.from_pd_series(pd.Series([piece_name] * piece_length))
         corpus_name_SeqData: SequentialData = SequentialData.from_pd_series(pd.Series([corpus_name] * piece_length))
 
-        annotated_key: str = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['annotated_key'].values[0]
+        annotated_key: str = metadata_tsv_df.loc[metadata_tsv_df['fname'] == piece_name]['annotated_key'].values[0]
         annotated_key_SeqData = SequentialData.from_pd_series(pd.Series([annotated_key] * piece_length))
 
-        composed_start: int = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composed_start'].values[0]
+        composed_start: int = metadata_tsv_df.loc[metadata_tsv_df['fname'] == piece_name]['composed_start'].values[0]
         composed_start_SeqData: SequentialData = SequentialData.from_pd_series(
             pd.Series([composed_start] * piece_length))
 
-        composed_end: int = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['composed_end'].values[0]
+        composed_end: int = metadata_tsv_df.loc[metadata_tsv_df['fname'] == piece_name]['composed_end'].values[0]
         composed_end_SeqData: SequentialData = SequentialData.from_pd_series(pd.Series([composed_end] * piece_length))
 
         composer: SequentialData = SequentialData.from_pd_series(pd.Series([corpus_name.split('_')[0]] * piece_length))
-        label_count = metadata_tsv_df.loc[metadata_tsv_df['fnames'] == piece_name]['label_count'].values[0]
+        label_count = metadata_tsv_df.loc[metadata_tsv_df['fname'] == piece_name]['label_count'].values[0]
 
         meta_info = PieceMetaData(
             corpus_path=parent_corpus_path,
@@ -299,7 +302,7 @@ class CorpusInfo(BaseCorpusInfo):
         metadata_tsv_df: pd.DataFrame = pd.read_csv(corpus_path + 'metadata.tsv', sep='\t')
 
         # don't count pieces with label_count=0, and annotated_key is empty
-        piecename_list = metadata_tsv_df.loc[metadata_tsv_df['label_count'] != 0]['fnames']
+        piecename_list = metadata_tsv_df.loc[metadata_tsv_df['label_count'] != 0]['fname']
         pieceinfo_list = [PieceInfo.from_directory(parent_corpus_path=corpus_path, piece_name=item) for item in
                           piecename_list]
 
@@ -434,7 +437,7 @@ if __name__ == '__main__':
     #
     # print(transition_dict)
 
-    piece = PieceInfo.from_directory(parent_corpus_path='../petit_dcml_corpus/corelli//',
+    piece = PieceInfo.from_directory(parent_corpus_path='../petit_dcml_corpus/corelli/',
                                      piece_name='op01n01a')
 
     result = piece.harmony_info._df[

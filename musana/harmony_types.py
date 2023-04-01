@@ -5,28 +5,21 @@ import re
 import typing
 from abc import abstractmethod
 from dataclasses import dataclass
-from functools import cache
 
+import numpy as np
+import pandas as pd
+import pitchtypes
 import regex_spm
-from pitchtypes import SpelledPitchClass as _SpelledPitchClass
-from pitchtypes import SpelledIntervalClass as SpelledIntervalClass
+from pitchtypes import SpelledPitchClass, SpelledIntervalClass
 
 T = typing.TypeVar('T')
 
 
-class SpelledPitchClass(_SpelledPitchClass):
-
-    def alteration_ic(self) -> SpelledIntervalClass:
-        if self.alteration() > 0:
-            alteration_symbol = 'a' * self.alteration()
-        elif self.alteration() == 0:
-            alteration_symbol = 'P'  # perfect unison, no alterations
-        elif self.alteration() < 0:
-            alteration_symbol = 'd' * abs(self.alteration())
-        else:
-            raise ValueError(self.alteration)
-        interval_class = SpelledIntervalClass(f'{alteration_symbol}1')
-        return interval_class
+@dataclass
+class Triad:
+    root: SpelledPitchClass
+    third: SpelledPitchClass
+    fifth: SpelledPitchClass
 
 
 class HarmonyRegexes:
@@ -45,68 +38,112 @@ class HarmonyRegexes:
     replacement_tone_regex = re.compile(r'([\^v][#b]*\d*)')
 
 
-class ProtocolHarmony(typing.Protocol):
-    @abstractmethod
-    def root(self) -> SpelledPitchClass:
-        pass
-
-    @abstractmethod
-    def key_if_tonicized(self) -> Key:
-        pass
-
-    @abstractmethod
-    def pc_set(self) -> typing.List[SpelledPitchClass]:
-        pass
-
-    @abstractmethod
-    def chord_tones(self) -> typing.List[SpelledPitchClass]:
-        pass
-
-
 @dataclass(frozen=True)
 class Key:
-    root: SpelledPitchClass
-    mode: typing.Literal['M', 'm']
+    tonic: SpelledPitchClass
+    mode: typing.Literal['major', 'minor']
 
-    _M_intervals = ['P1', 'M2', 'M3', 'P4', 'P5', 'M6', 'M7']
-    _m_intervals = ['P1', 'M2', 'm3', 'P4', 'P5', 'm6', 'm7']
+    _MajorIntervals = pitchtypes.asic(things=np.array(['P1', 'M2', 'M3', 'P4', 'P5', 'M6', 'M7']))
+    _NatrualMinorIntervals = pitchtypes.asic(things=np.array(['P1', 'M2', 'm3', 'P4', 'P5', 'm6', 'm7']))
+    _HarmonicMinorIntervals = pitchtypes.asic(things=np.array(['P1', 'M2', 'm3', 'P4', 'P5', 'm6', 'M7']))
 
     @classmethod
-    def parse(cls, key_str: str) -> Key:
+    def parse(cls, key_str: str) -> typing.Self:
 
         if not isinstance(key_str, str):
             raise TypeError(f"expected string as input, got {key_str}")
         key_match = HarmonyRegexes.key_regex.fullmatch(key_str)
         if key_match is None:
             raise ValueError(f"could not match '{key_str}' with regex: '{HarmonyRegexes.key_regex.pattern}'")
-        mode = 'M' if key_match['class'].isupper() else 'm'
-        root = SpelledPitchClass(key_match['class'].upper() + key_match['modifiers'])
-        instance = cls(root=root, mode=mode)
+        mode = 'major' if key_match['class'].isupper() else 'minor'
+        tonic = SpelledPitchClass(key_match['class'].upper() + key_match['modifiers'])
+        instance = cls(tonic=tonic, mode=mode)
         return instance
 
-    def find_pc(self, degree: Degree) -> SpelledPitchClass:
-        if self.mode == 'M':
-            intervals = self._M_intervals
-        elif self.mode == 'm':
-            intervals = self._m_intervals
-        else:
-            raise ValueError(f'{self.mode=}')
-        interval = intervals[degree.number - 1]
-        pc = self.root + SpelledIntervalClass(interval)
-        pc = SpelledPitchClass(pc.name())  # TODO: do it in the right way later (look up customized SpelledPitchClass)
-        pc = pc - pc.alteration_ic()
-        return pc
+    @classmethod
+    def transpose_to(cls, source_key: str,
+                     by: SpelledIntervalClass,
+                     target_mode: typing.Literal['major', 'minor']) -> typing.Self:
+
+        source_key_cls = Key.parse(key_str=source_key)
+        target_root: SpelledPitchClass = source_key_cls.tonic + by
+        instance = cls(tonic=target_root, mode=target_mode)
+        return instance
 
     @property
-    @cache
+    def parallel(self) -> Key:
+        raise NotImplementedError
+
+    @property
+    def relative(self) -> Key:
+        if self.mode == 'major':
+            new_tonic = self.tonic - SpelledIntervalClass('m3')
+            relative_minor = Key(tonic=new_tonic, mode='minor')
+            return relative_minor
+        else:
+            new_tonic = self.tonic + SpelledIntervalClass('m3')
+            relative_major = Key(tonic=new_tonic, mode='major')
+            return relative_major
+
+    def scale(self) -> typing.List[SpelledPitchClass]:
+        the_scale = [self.find_pc(Degree.parse(str(i))) for i in range(1, 8)]
+        return the_scale
+
+    @property
+    def accidentals(self) -> int:
+        return abs(self.relative.tonic.fifths()) if self.mode == 'minor' else abs(self.tonic.fifths())
+
+    def find_pc(self, degree: Degree) -> SpelledPitchClass:
+        if self.mode == 'major':
+            intervals = self._MajorIntervals
+        elif self.mode == 'minor':
+            intervals = self._NatrualMinorIntervals
+        else:
+            raise ValueError(f'{self.mode=}')
+
+        if degree.alteration > 0:
+            alteration_symbol = 'a' * degree.alteration
+        elif degree.alteration == 0:
+            alteration_symbol = 'P'  # perfect unison, no alterations
+        elif degree.alteration < 0:
+            alteration_symbol = 'd' * abs(degree.alteration)
+        else:
+            raise ValueError(degree.alteration)
+        interval_alteration = SpelledIntervalClass(f'{alteration_symbol}1')
+
+        interval = intervals[degree.number - 1] + interval_alteration
+        pc = self.tonic + interval
+
+        return pc
+
+    def find_sd(self, pc: SpelledPitchClass) -> Degree:
+
+        if pc.alteration() > 0:
+            alteration_symbol = 'a' * pc.alteration()
+        elif pc.alteration() == 0:
+            alteration_symbol = 'P'  # perfect unison, no alterations
+        elif pc.alteration() < 0:
+            alteration_symbol = 'd' * abs(pc.alteration())
+        else:
+            raise ValueError(pc.alteration)
+        interval_class = SpelledIntervalClass(f'{alteration_symbol}1')
+
+        sd_alteration = interval_class.alteration()
+
+        pc_letter = pc.letter()
+        sd_integer = self.pcs.index(SpelledPitchClass(pc_letter)) + 1
+        sd = Degree(number=sd_integer, alteration=sd_alteration)
+        return sd
+
+    @property
     def pcs(self) -> typing.List[SpelledPitchClass]:
         return [self.find_pc(degree=Degree(number=n, alteration=0)) for n in range(1, 8)]
 
     def to_str(self) -> str:
-        if self.mode == 'm':
-            resulting_str = str(self.root).lower()
-        elif self.mode == 'M':
-            resulting_str = str(self.root)
+        if self.mode == 'minor':
+            resulting_str = str(self.tonic).lower()
+        elif self.mode == 'major':
+            resulting_str = str(self.tonic)
         else:
             raise ValueError(f'not applicable mode')
         return resulting_str
@@ -156,6 +193,15 @@ class Degree:
         alteration = SpelledPitchClass(f'C{modifiers_match}').alteration()
         instance = cls(number=degree_number, alteration=alteration)
         return instance
+
+    def to_sic(self) -> SpelledIntervalClass:
+        sic = ...
+        return sic
+
+    def to_spc(self) -> SpelledPitchClass:
+        """relative to C"""
+        spc = Key.parse(key_str='C').find_pc(degree=self)
+        return spc
 
 
 class IntervalQuality:
@@ -247,7 +293,14 @@ class HarmonyQuality:
         instance = cls(stack_size=3, interval_class_quality_list=ic_quality_list)
         return instance
 
-    def to_spelledintervalclass(self, root: SpelledPitchClass) -> typing.List[SpelledIntervalClass]:
+    @property
+    def major_minor_mode(self) -> typing.Literal['major', 'minor']:
+        mode = 'major' if (
+                self.interval_class_quality_list[0] == IP(1) and self.interval_class_quality_list[
+            1] == IP(-1)) else 'minor'
+        return mode
+
+    def to_sic(self, root: SpelledPitchClass) -> typing.List[SpelledIntervalClass]:
         raise NotImplementedError
 
 
@@ -363,8 +416,28 @@ class SnpParsable(typing.Protocol):
         pass
 
 
+@dataclass
+class Chain(typing.Generic[T]):
+    head: T
+    tail: typing.Optional[Chain[T]]
+
+
+class AbstractHarmony(typing.Protocol):
+    @abstractmethod
+    def root(self) -> SpelledPitchClass:
+        pass
+
+    @abstractmethod
+    def key_if_tonicized(self) -> Key:
+        pass
+
+    @abstractmethod
+    def pcs(self) -> typing.List[SpelledPitchClass]:
+        pass
+
+
 @dataclass(frozen=True)
-class SingleNumeral(ProtocolHarmony):
+class SingleNumeral(AbstractHarmony):
     key: Key
     degree: Degree
     quality: HarmonyQuality
@@ -410,13 +483,8 @@ class SingleNumeral(ProtocolHarmony):
         return root
 
     def key_if_tonicized(self) -> Key:
-        """
-        Make the current numeral as the tonic, return the spelled pitch class of the root as Key.
-        """
-        major_minor_key_mode = 'M' if (
-                self.quality.interval_class_quality_list[0] == IP(1) and self.quality.interval_class_quality_list[
-            1] == IP(-1)) else 'm'
-        key = Key(root=self.root(), mode=major_minor_key_mode)  # TODO: better version?
+        mode = self.quality.major_minor_mode
+        key = Key(tonic=self.root(), mode=mode)
         return key
 
     def bass_degree(self) -> Degree:
@@ -427,26 +495,16 @@ class SingleNumeral(ProtocolHarmony):
         pc = self.key.find_pc(self.bass_degree())
         return pc
 
-    def chord_tones(self) -> typing.List[SpelledPitchClass]:
-        roman_numeral_bass_pc = self.key.find_pc(degree=self.degree)
-
-        print(f'{roman_numeral_bass_pc=}')
-        print(f'{self.quality=}')
-
-    def pc_set(self) -> typing.List[SpelledPitchClass]:
+    def pcs(self) -> typing.List[SpelledPitchClass]:
         raise NotImplementedError
 
 
 @dataclass
-class Chain(typing.Generic[T]):
-    head: T
-    tail: typing.Optional[Chain[T]]
-
-
 class Numeral(Chain[SingleNumeral]):
+    key: Key
 
     @classmethod
-    def parse(cls, key_str: str, numeral_str: str) -> typing.Self:
+    def parse(cls, key_str: str|Key, numeral_str: str) -> typing.Self:
         # numeral_str examples: "#ii/V", "##III/bIV/V", "bV", "IV(+6)", "vii%7/IV"
 
         if "/" in numeral_str:
@@ -457,49 +515,93 @@ class Numeral(Chain[SingleNumeral]):
         else:
             head = SingleNumeral.parse(key_str=key_str, numeral_str=numeral_str)
             tail = None
-
-        instance = cls(head=head, tail=tail)
+        key = Key.parse(key_str=key_str)
+        instance = cls(head=head, tail=tail, key=key)
         return instance
+
+    def key_if_tonicized(self) -> Key:
+        result_key = self.head.key_if_tonicized()
+        return result_key
 
 
 @dataclass(frozen=True)
-class TonalHarmony(ProtocolHarmony):
+class TonalHarmony(AbstractHarmony):
     globalkey: Key
+    localkey: Key
     numeral: Numeral
 
     @classmethod
-    def parse_dcml(cls, globalkey_str: str, localkey_numeral_str: str, chord_str: str) -> typing.Self:
+    def parse_string(cls, globalkey_str: str, localkey_numeral_str: str, chord_str: str) -> typing.Self:
         # chord_str examples: "IV(+6)", "vii%7/IV", "ii64"
         globalkey = Key.parse(key_str=globalkey_str)
         localkey = Numeral.parse(key_str=globalkey_str, numeral_str=localkey_numeral_str).head.key_if_tonicized()
         compound_numeral = Numeral.parse(key_str=localkey.to_str(), numeral_str=chord_str)
-        instance = cls(globalkey=globalkey, numeral=compound_numeral)
+        instance = cls(globalkey=globalkey, localkey=localkey, numeral=compound_numeral)
         return instance
 
-    def pc_set(self) -> typing.List[SpelledPitchClass]:
-        pitchclass = self.chord_tones() | self.added_tones()
-        return pitchclass
+    @classmethod
+    def from_df_row(cls, df_row: pd.DataFrame) -> typing.Self:
+        GK = Key.parse(key_str=df_row['globalkey'])
+        LK = SingleNumeral.parse(key_str=GK, numeral_str=df_row['localkey']).key_if_tonicized()
+        numeral = Numeral.parse(key_str=LK, numeral_str=)
+
+        instance = cls(globalkey=GK,
+                       localkey=LK,
+                       numeral=...)
+        return instance
+    def pcs(self) -> typing.List[SpelledPitchClass]:
+        raise NotImplementedError
 
     def root(self) -> SpelledPitchClass:
-        pass
+        result = self.numeral.head.root()
+        return result
+
+    def third(self) -> SpelledPitchClass:
+        scale_mode = self.numeral.head.quality.major_minor_mode
+        if scale_mode == 'major':
+            ic_to_add = SpelledIntervalClass('M3')
+        else:
+            ic_to_add = SpelledIntervalClass('m3')
+        result = self.numeral.head.root() + ic_to_add
+        return result
+
+    def fifth(self) -> SpelledPitchClass:
+        the_root = self.root()
+        result = the_root + SpelledIntervalClass('P5')
+        return result
+
+    # def key_if_tonicized(self, ref_key: typing.Literal['global', 'local', 'chord']) -> Key:
+    #     """with different reference tonic: global key, local key or the chord level """
+    #     match ref_key:
+    #         case "global":
+    #             result_key_root = self.numeral.head.root()
+    #
+    #         case "local":
+    #             ...
+    #         case "chord":
+    #             result_key_root = self.numeral.key_if_tonicized()
+    #
+    #     result_key_mode = 'major' if (self.numeral.head.quality.interval_class_quality_list[0] == IP(1) and
+    #                                   self.numeral.head.quality.interval_class_quality_list[1] == IP(-1)) else 'minor'
+    #     result_key = Key(tonic=result_key_root, mode=result_key_mode)
+    #     return result_key
 
     def key_if_tonicized(self) -> Key:
-        pass
-
-    def to_numeral(self) -> Numeral:
-        pass
-
-    def chord_tones_pc(self) -> typing.List[SpelledPitchClass]:
-        pass
-
-    def added_tones_pc(self) -> typing.List[SpelledPitchClass]:
-        pass
+        raise NotImplementedError
 
 
 if __name__ == '__main__':
-    # result = Numeral.parse(key_str='C', numeral_str='V7(v#9)/IV/III')
-    numeral = SingleNumeral.parse(key_str='C', numeral_str='ii')
-    result = numeral.chord_tones()
-    print(f'{result=}')
 
-    # print(f'{result=}')
+
+    df = pd.read_csv('/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-03_suite_clair.tsv', sep='\t')
+
+    df_row = df.iloc[76]
+    print(f'{df_row=}')
+
+    GK = Key.parse(key_str=df_row['globalkey'])
+    LK = SingleNumeral.parse(key_str=GK, numeral_str=df_row['localkey']).key_if_tonicized()
+
+    print(f'{GK=}')
+    print(f'{LK=}')
+
+

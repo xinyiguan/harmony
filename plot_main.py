@@ -1,4 +1,3 @@
-# Created by Xinyi Guan in 2022.
 from typing import Literal
 
 import pandas as pd
