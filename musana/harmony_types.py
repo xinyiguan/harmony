@@ -130,8 +130,7 @@ class Key:
 
         sd_alteration = interval_class.alteration()
 
-        pc_letter = pc.letter()
-        sd_integer = self.pcs.index(SpelledPitchClass(pc_letter)) + 1
+        sd_integer = [pc.letter() for pc in self.pcs].index(pc.letter()) + 1
         sd = Degree(number=sd_integer, alteration=sd_alteration)
         return sd
 
@@ -381,12 +380,21 @@ class SingleNumeralParts:
     replacement_tones: str
 
     # the regular expression conforms with the DCML annotation standards
+    # _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))"  # accidentals
+    #                        "(?P<roman_numeral>(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))"  # roman numeral
+    #                        "(?P<form>(%|o|\+|M|\+M))?"  # quality form
+    #                        "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
+    #                        "(?P<added_tones>(\(\+[#b]*\d*)\))?"  # added tones, non-chord tones added within parentheses and preceded by a "+"
+    #                        "(?P<replacement_tones>(\([\^v]*[#b]*\d*)\))?$")  # replaced chord tones expressed through intervals <= 8
+
     _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))"  # accidentals
                            "(?P<roman_numeral>(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))"  # roman numeral
                            "(?P<form>(%|o|\+|M|\+M))?"  # quality form
                            "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
-                           "(?P<added_tones>(\(\+[#b]*\d*)\))?"  # added tones, non-chord tones added within parentheses and preceded by a "+"
-                           "(?P<replacement_tones>(\([\^v][#b]*\d*)\))?$")  # replaced chord tones expressed through intervals <= 8
+                           "(\()?"
+                           "(?P<replacement_tones>([\^v]*[#b]*\d*))?"
+                           "(?P<added_tones>((\+[#b]*\d)*))?"  # added tones, non-chord tones added within parentheses and preceded by a "+" 
+                           "\)?$")  # replaced chord tones expressed through intervals <= 8
 
     @classmethod
     def parse(cls, numeral_str: str) -> typing.Self:
@@ -431,10 +439,6 @@ class AbstractHarmony(typing.Protocol):
     def key_if_tonicized(self) -> Key:
         pass
 
-    @abstractmethod
-    def pcs(self) -> typing.List[SpelledPitchClass]:
-        pass
-
 
 @dataclass(frozen=True)
 class SingleNumeral(AbstractHarmony):
@@ -442,8 +446,7 @@ class SingleNumeral(AbstractHarmony):
     degree: Degree
     quality: HarmonyQuality
     figbass: FiguredBass
-    added_tones: AddedTones
-    replacement_tones: ReplacementTones
+    pcs: typing.List[SpelledPitchClass]
 
     @classmethod
     def parse(cls, key_str: str | Key, numeral_str: str) -> typing.Self:
@@ -475,7 +478,7 @@ class SingleNumeral(AbstractHarmony):
         # create class instance:
         instance = cls(key=key,
                        degree=degree, quality=quality, figbass=figbass,
-                       added_tones=added_tones, replacement_tones=replacement_tones)
+                       pcs=...)
         return instance
 
     def root(self) -> SpelledPitchClass:
@@ -504,7 +507,7 @@ class Numeral(Chain[SingleNumeral]):
     key: Key
 
     @classmethod
-    def parse(cls, key_str: str|Key, numeral_str: str) -> typing.Self:
+    def parse(cls, key_str: str | Key, numeral_str: str) -> typing.Self:
         # numeral_str examples: "#ii/V", "##III/bIV/V", "bV", "IV(+6)", "vii%7/IV"
 
         if "/" in numeral_str:
@@ -515,7 +518,7 @@ class Numeral(Chain[SingleNumeral]):
         else:
             head = SingleNumeral.parse(key_str=key_str, numeral_str=numeral_str)
             tail = None
-        key = Key.parse(key_str=key_str)
+        key = Key.parse(key_str=key_str) if isinstance(key_str, str) else key_str
         instance = cls(head=head, tail=tail, key=key)
         return instance
 
@@ -529,6 +532,7 @@ class TonalHarmony(AbstractHarmony):
     globalkey: Key
     localkey: Key
     numeral: Numeral
+    pcs: typing.List[SpelledPitchClass]
 
     @classmethod
     def parse_string(cls, globalkey_str: str, localkey_numeral_str: str, chord_str: str) -> typing.Self:
@@ -536,21 +540,41 @@ class TonalHarmony(AbstractHarmony):
         globalkey = Key.parse(key_str=globalkey_str)
         localkey = Numeral.parse(key_str=globalkey_str, numeral_str=localkey_numeral_str).head.key_if_tonicized()
         compound_numeral = Numeral.parse(key_str=localkey.to_str(), numeral_str=chord_str)
-        instance = cls(globalkey=globalkey, localkey=localkey, numeral=compound_numeral)
+        pcs = ...
+        instance = cls(globalkey=globalkey, localkey=localkey, numeral=compound_numeral, pcs=pcs)
         return instance
+    @staticmethod
+    def convert_added_tones_to_5th(entry: float | str | pd.NA) -> typing.List[int]:
 
+        if pd.isna(entry):
+            result = []
+        elif isinstance(entry,float):
+            result = [int(entry)]
+        elif isinstance(entry,str):
+            result = list(map(int, entry.split(',')))
+        else:
+            raise TypeError(entry)
+        print(f'{entry=} {result=}')
+        return result
     @classmethod
     def from_df_row(cls, df_row: pd.DataFrame) -> typing.Self:
         GK = Key.parse(key_str=df_row['globalkey'])
         LK = SingleNumeral.parse(key_str=GK, numeral_str=df_row['localkey']).key_if_tonicized()
-        numeral = Numeral.parse(key_str=LK, numeral_str=)
+        numeral = Numeral.parse(key_str=LK, numeral_str=df_row['chord'])
 
+        chord_tones_in_5th = list(map(int, df_row['chord_tones'].split(",")))
+        chord_tones_pc = [SpelledPitchClass.from_fifths(fifths=x) for x in chord_tones_in_5th]
+        added_tones_in_5th = cls.convert_added_tones_to_5th(df_row['added_tones'])
+        print(f'{added_tones_in_5th=}')
+        #added_tones_in_5th = list(map(int, df_row['added_tones'].split(",")))
+        added_tones_pc = [SpelledPitchClass.from_fifths(fifths=x) for x in added_tones_in_5th]
+
+        pcs = chord_tones_pc + added_tones_pc
         instance = cls(globalkey=GK,
                        localkey=LK,
-                       numeral=...)
+                       numeral=numeral,
+                       pcs=pcs)
         return instance
-    def pcs(self) -> typing.List[SpelledPitchClass]:
-        raise NotImplementedError
 
     def root(self) -> SpelledPitchClass:
         result = self.numeral.head.root()
@@ -589,19 +613,15 @@ class TonalHarmony(AbstractHarmony):
     def key_if_tonicized(self) -> Key:
         raise NotImplementedError
 
+def test():
+    df: pd.DataFrame = pd.read_csv(
+        '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
+        sep='\t')
+
+    df_row = df.iloc[73]
+
+    result = TonalHarmony.from_df_row(df_row)
+    print(f'{result=}')
 
 if __name__ == '__main__':
-
-
-    df = pd.read_csv('/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-03_suite_clair.tsv', sep='\t')
-
-    df_row = df.iloc[76]
-    print(f'{df_row=}')
-
-    GK = Key.parse(key_str=df_row['globalkey'])
-    LK = SingleNumeral.parse(key_str=GK, numeral_str=df_row['localkey']).key_if_tonicized()
-
-    print(f'{GK=}')
-    print(f'{LK=}')
-
-
+    test()

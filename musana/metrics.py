@@ -25,7 +25,7 @@ class NonDiatonicPCs:
         non_diatonic_sds = [self.reference_key.find_sd(pc) for pc in self.non_diatonic_pcs]
         return non_diatonic_sds
 
-    @property
+
     def sum_in_fifths(self) -> int:
         sum_in_lo5 = sum([abs(sd.to_spc().fifths()) for sd in self.non_diatonic_sds])
         return sum_in_lo5
