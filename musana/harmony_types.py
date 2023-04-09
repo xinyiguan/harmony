@@ -1,6 +1,7 @@
 # Defining the harmony concepts.
 from __future__ import annotations
 
+import math
 import re
 import typing
 from abc import abstractmethod
@@ -285,10 +286,16 @@ class HarmonyQuality:
                    4: _map_to_ic_qualities_4}
 
     @classmethod
-    def smart_init(cls, n_chord_tones: int, upper: bool,
-                   form_symbol: typing.Literal['o', '+', '%', 'M', '+M', '']) -> typing.Self:
+    def smart_init(cls, n_chord_tones: int, upper_case: bool,
+                   form_symbol: typing.Literal['o', '+', '%', 'M', '+M', '']) -> typing.Optional[typing.Self]:
+        """
+        i: upper_case = false
+        I: upper_case = True
+        """
         dict_to_check = cls._which_dict[n_chord_tones]
-        ic_quality_list = [IP(x) for x in dict_to_check[(upper, form_symbol)]]
+        if (upper_case, form_symbol) not in dict_to_check:
+            raise ValueError()
+        ic_quality_list = [IP(x) for x in dict_to_check[(upper_case, form_symbol)]]
         instance = cls(stack_size=3, interval_class_quality_list=ic_quality_list)
         return instance
 
@@ -376,8 +383,8 @@ class SingleNumeralParts:
     modifiers: str
     form: str
     figbass: str
-    added_tones: str
-    replacement_tones: str
+    # added_tones: str
+    # replacement_tones: str
 
     # the regular expression conforms with the DCML annotation standards
     # _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))"  # accidentals
@@ -387,14 +394,20 @@ class SingleNumeralParts:
     #                        "(?P<added_tones>(\(\+[#b]*\d*)\))?"  # added tones, non-chord tones added within parentheses and preceded by a "+"
     #                        "(?P<replacement_tones>(\([\^v]*[#b]*\d*)\))?$")  # replaced chord tones expressed through intervals <= 8
 
+    # _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))"  # accidentals
+    #                        "(?P<roman_numeral>(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))"  # roman numeral
+    #                        "(?P<form>(%|o|\+|M|\+M))?"  # quality form
+    #                        "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
+    #                        "(\()?"
+    #                        "(?P<replacement_tones>([\^v][#b]\d*)*)?"
+    #                        "(?P<added_tones>((\+[#b]\d)*))?"  # added tones, non-chord tones added within parentheses and preceded by a "+"
+    #                        "\)?$")  # replaced chord tones expressed through intervals <= 8
+
     _sn_regex = re.compile("^(?P<modifiers>(b*)|(#*))"  # accidentals
                            "(?P<roman_numeral>(VII|VI|V|IV|III|II|I|vii|vi|v|iv|iii|ii|i|Ger|It|Fr|@none))"  # roman numeral
                            "(?P<form>(%|o|\+|M|\+M))?"  # quality form
                            "(?P<figbass>(7|65|43|42|2|64|6))?"  # figured bass
-                           "(\()?"
-                           "(?P<replacement_tones>([\^v]*[#b]*\d*))?"
-                           "(?P<added_tones>((\+[#b]*\d)*))?"  # added tones, non-chord tones added within parentheses and preceded by a "+" 
-                           "\)?$")  # replaced chord tones expressed through intervals <= 8
+                           "(\((?P<changes>((\+|-|\^|v)?(b*|#*)\d)+)\))?$")  # replaced chord tones expressed through intervals <= 8
 
     @classmethod
     def parse(cls, numeral_str: str) -> typing.Self:
@@ -407,13 +420,12 @@ class SingleNumeralParts:
         modifiers = s_numeral_match['modifiers'] if s_numeral_match['modifiers'] else ''
         form = s_numeral_match['form'] if s_numeral_match['form'] else ''
         figbass = s_numeral_match['figbass'] if s_numeral_match['figbass'] else ''
-        added_tones = s_numeral_match['added_tones'].replace('(', '').replace(')', '') if s_numeral_match[
-            'added_tones'] else ''
-        replacement_tones = s_numeral_match['replacement_tones'].replace('(', '').replace(')', '') if s_numeral_match[
-            'replacement_tones'] else ''
+        # added_tones = s_numeral_match['added_tones'].replace('(', '').replace(')', '') if s_numeral_match[
+        #     'added_tones'] else ''
+        # replacement_tones = s_numeral_match['replacement_tones'].replace('(', '').replace(')', '') if s_numeral_match[
+        #     'replacement_tones'] else ''
 
-        instance = cls(modifiers=modifiers, roman_numeral=roman_numeral, form=form, figbass=figbass,
-                       added_tones=added_tones, replacement_tones=replacement_tones)
+        instance = cls(modifiers=modifiers, roman_numeral=roman_numeral, form=form, figbass=figbass)
         return instance
 
 
@@ -446,11 +458,11 @@ class SingleNumeral(AbstractHarmony):
     degree: Degree
     quality: HarmonyQuality
     figbass: FiguredBass
-    pcs: typing.List[SpelledPitchClass]
+
+    # pcs: typing.List[SpelledPitchClass]
 
     @classmethod
-    def parse(cls, key_str: str | Key, numeral_str: str) -> typing.Self:
-
+    def parse(cls, key_str: str | Key, numeral_str: str) -> typing.Optional[typing.Self]:
         snp = SingleNumeralParts.parse(numeral_str=numeral_str)
 
         # parse key:
@@ -462,23 +474,27 @@ class SingleNumeral(AbstractHarmony):
         # parse degree:
         degree = Degree.parse(degree_str=snp.modifiers + snp.roman_numeral)
 
-        # parse added_tones: # TODO: double check the annotation tutorial (advanced section) for more complex cases
-        added_tones = AddedTones.parse(added_tones_str=snp.added_tones)
-
-        # replacement_tones: # TODO: double check the annotation tutorial (advanced section) for more complex cases
-        replacement_tones = ReplacementTones.parse(replacement_tones_str=snp.replacement_tones)
+        # # parse added_tones: # TODO: double check the annotation tutorial (advanced section) for more complex cases
+        # added_tones = AddedTones.parse(added_tones_str=snp.added_tones)
+        #
+        # # replacement_tones: # TODO: double check the annotation tutorial (advanced section) for more complex cases
+        # replacement_tones = ReplacementTones.parse(replacement_tones_str=snp.replacement_tones)
 
         # parse figbass:
         figbass = FiguredBass.parse(figbass_str=snp.figbass)
 
+        # print(f'{snp.roman_numeral=} {snp.form=} f{snp.roman_numeral.isupper()=}')
         # parse quality, in stack of thirds:
-        quality = HarmonyQuality.smart_init(n_chord_tones=figbass.n_chord_tones(), upper=snp.roman_numeral.isupper(),
-                                            form_symbol=snp.form)
+        try:
+            quality = HarmonyQuality.smart_init(n_chord_tones=figbass.n_chord_tones(),
+                                                upper_case=snp.roman_numeral.isupper(),
+                                                form_symbol=snp.form)
+        except ValueError:
+            raise ValueError
 
         # create class instance:
         instance = cls(key=key,
-                       degree=degree, quality=quality, figbass=figbass,
-                       pcs=...)
+                       degree=degree, quality=quality, figbass=figbass)
         return instance
 
     def root(self) -> SpelledPitchClass:
@@ -510,6 +526,12 @@ class Numeral(Chain[SingleNumeral]):
     def parse(cls, key_str: str | Key, numeral_str: str) -> typing.Self:
         # numeral_str examples: "#ii/V", "##III/bIV/V", "bV", "IV(+6)", "vii%7/IV"
 
+        # replace special chord with numeral:
+
+        # numeral_str = numeral_str.replace('It', 'viio6(b3)/V')
+        # numeral_str = numeral_str.replace('Ger', 'viio65(b3)/V')
+        # numeral_str = numeral_str.replace('Fr', 'V43(b5)/V')
+
         if "/" in numeral_str:
             L_numeral_str, R_numeral_str = numeral_str.split("/", maxsplit=1)
             tail = cls.parse(key_str=key_str, numeral_str=R_numeral_str)
@@ -520,6 +542,23 @@ class Numeral(Chain[SingleNumeral]):
             tail = None
         key = Key.parse(key_str=key_str) if isinstance(key_str, str) else key_str
         instance = cls(head=head, tail=tail, key=key)
+
+        return instance
+
+    @classmethod
+    def special_parse(cls, key_str: str | Key, chord_str: typing.Literal['It', 'Ger', 'Fr']) -> typing.Self:
+        # numeral_str examples: "#ii/V", "##III/bIV/V", "bV", "IV(+6)", "vii%7/IV"
+
+        if chord_str == 'It':
+            numeral = Numeral.parse(key_str=key_str, numeral_str='viio6(b3)/V')
+        elif chord_str == 'Ger':
+            numeral = Numeral.parse(key_str=key_str, numeral_str='viio65(b3)/V')
+        elif chord_str == 'Fr':
+            numeral = Numeral.parse(key_str=key_str, numeral_str='V43(b5)/V')
+
+        key = Key.parse(key_str=key_str) if isinstance(key_str, str) else key_str
+
+        instance = cls(key=key, head=..., tail=...)
         return instance
 
     def key_if_tonicized(self) -> Key:
@@ -532,6 +571,7 @@ class TonalHarmony(AbstractHarmony):
     globalkey: Key
     localkey: Key
     numeral: Numeral
+    chord_str: str
     pcs: typing.List[SpelledPitchClass]
 
     @classmethod
@@ -543,37 +583,81 @@ class TonalHarmony(AbstractHarmony):
         pcs = ...
         instance = cls(globalkey=globalkey, localkey=localkey, numeral=compound_numeral, pcs=pcs)
         return instance
+
     @staticmethod
     def convert_added_tones_to_5th(entry: float | str | pd.NA) -> typing.List[int]:
 
         if pd.isna(entry):
             result = []
-        elif isinstance(entry,float):
+        elif isinstance(entry, float):
             result = [int(entry)]
-        elif isinstance(entry,str):
+        elif isinstance(entry, str):
             result = list(map(int, entry.split(',')))
         else:
             raise TypeError(entry)
-        print(f'{entry=} {result=}')
         return result
-    @classmethod
-    def from_df_row(cls, df_row: pd.DataFrame) -> typing.Self:
-        GK = Key.parse(key_str=df_row['globalkey'])
-        LK = SingleNumeral.parse(key_str=GK, numeral_str=df_row['localkey']).key_if_tonicized()
-        numeral = Numeral.parse(key_str=LK, numeral_str=df_row['chord'])
 
-        chord_tones_in_5th = list(map(int, df_row['chord_tones'].split(",")))
+    @classmethod
+    def from_df_row(cls, df_row: pd.DataFrame) -> typing.Optional[typing.Self]:
+        GK = Key.parse(key_str=df_row['globalkey'])
+        LK = Numeral.parse(key_str=GK, numeral_str=df_row['localkey']).key_if_tonicized()
+        chord_str = str(df_row['chord'])
+
+        # try:
+        #     if chord_str == 'It':
+        #         numeral = Numeral.parse(key_str=LK, numeral_str='viio6(b3)/V')
+        #     elif chord_str == 'It6':
+        #         numeral = Numeral.parse(key_str=LK, numeral_str='viio(b3)/V')
+        #     elif chord_str in ['Ger', 'Ger6', 'Ger65']:
+        #         numeral = Numeral.parse(key_str=LK, numeral_str='viio65(b3)/V')
+        #     elif chord_str in ['Fr', 'Fr6', 'Fr43']:
+        #         numeral = Numeral.parse(key_str=LK, numeral_str='V43(b5)/V')
+        #
+        #     else:
+        #         numeral = Numeral.parse(key_str=LK, numeral_str=chord_str)
+        # except:
+        #     return None
+
+        # do not handel special chord at the moment:
+        special_chords_list = ['It', 'It6', 'Ger', 'Ger6', 'Ger65', 'Ger7', 'Fr', 'Fr6', 'Fr43', 'Fr7', 'nan']
+
+        try:
+            if any(item in chord_str for item in special_chords_list):
+                return None
+            else:
+                numeral = Numeral.parse(key_str=LK, numeral_str=chord_str)
+        except:
+            return None
+
+        def standardize_input(input: str | typing.Tuple[int] | float) -> typing.List[int]:
+            if isinstance(input, float) and math.isnan(input):
+                assert math.isnan(input)
+                result = []
+            elif isinstance(input, float):
+                result = [int(input)]
+            elif isinstance(input, tuple):
+                result = list(input)
+            elif isinstance(input, str):
+                result = list(int(x) for x in input.split(','))
+            else:
+                raise TypeError(f'{input=} {type(input)=}')
+            return result
+
+        # chord_tones and added_tones are tuples of int?
+        chord_tones_in_5th = standardize_input(df_row['chord_tones'])
+        added_tones_in_5th = standardize_input(df_row['added_tones'])
+
+        # chord_tones_in_5th = list(map(int, df_row['chord_tones'].split(",")))
+        # added_tones_in_5th = cls.convert_added_tones_to_5th(df_row['added_tones'])
         chord_tones_pc = [SpelledPitchClass.from_fifths(fifths=x) for x in chord_tones_in_5th]
-        added_tones_in_5th = cls.convert_added_tones_to_5th(df_row['added_tones'])
-        print(f'{added_tones_in_5th=}')
-        #added_tones_in_5th = list(map(int, df_row['added_tones'].split(",")))
         added_tones_pc = [SpelledPitchClass.from_fifths(fifths=x) for x in added_tones_in_5th]
 
         pcs = chord_tones_pc + added_tones_pc
         instance = cls(globalkey=GK,
                        localkey=LK,
                        numeral=numeral,
-                       pcs=pcs)
+                       pcs=pcs,
+                       chord_str=chord_str)
         return instance
 
     def root(self) -> SpelledPitchClass:
@@ -613,6 +697,15 @@ class TonalHarmony(AbstractHarmony):
     def key_if_tonicized(self) -> Key:
         raise NotImplementedError
 
+    def non_diatonic_pcs(self, reference_key: Key) -> typing.List[SpelledPitchClass]:
+        non_diatonic_pcs = [pc for pc in self.pcs if pc not in reference_key.pcs]
+        return non_diatonic_pcs
+
+    def non_diatonic_sds(self, reference_key: Key) -> typing.List[Degree]:
+        non_diatonic_sds = [reference_key.find_sd(pc) for pc in self.non_diatonic_pcs(reference_key=reference_key)]
+        return non_diatonic_sds
+
+
 def test():
     df: pd.DataFrame = pd.read_csv(
         '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
@@ -623,5 +716,17 @@ def test():
     result = TonalHarmony.from_df_row(df_row)
     print(f'{result=}')
 
+
+def test2():
+    numeral = Numeral.parse(key_str='C', numeral_str='V43(b5)/V')
+    result = numeral
+    print(f'{result=}')
+
+
+def test3():
+    snp = SingleNumeralParts.parse('V+')
+    print(f'{snp.roman_numeral}')
+
+
 if __name__ == '__main__':
-    test()
+    test3()

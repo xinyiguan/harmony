@@ -1,58 +1,81 @@
 from __future__ import annotations
-import collections
 import typing
+from typing import Callable, Optional
 from dataclasses import dataclass
-from typing import List
 
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from matplotlib import pyplot as plt
 
-import musana.generics as generics
-from musana.loader import PieceInfo, MetaCorporaInfo, CorpusInfo
 from musana.harmony_types import TonalHarmony
-import musana.plotting as plotting
-from musana.metrics import NonDiatonicPCs
 
 metrics = {}
+A = typing.TypeVar('A')
+B = typing.TypeVar('B')
+C = typing.TypeVar('C')
+
+
+def maybe_bind(f: Callable[[A], Optional[B]], g: Callable[[B], Optional[C]]) -> Callable[[A], Optional[C]]:
+    def h(x: A) -> Optional[C]:
+        y = f(x)
+        if y is None:
+            #print('y is None')
+            return None
+        else:
+            #print(f'{y.chord_str} is valid')
+            return g(y)
+
+    return h
 
 
 @dataclass
 class ChromaticityMetrics:
 
-
     @staticmethod
-    def chord_chromaticity(chord: TonalHarmony) -> typing.Dict[str, int]:
-        """refernece tonics (3 levels): global tonic, local tonic and pseduo tonic"""
-        pcs = chord.pcs
-        d_to_global_tonic = NonDiatonicPCs(pcs=pcs, reference_key=chord.globalkey).sum_in_fifths()
-        d_to_local_tonic = NonDiatonicPCs(pcs=pcs, reference_key=chord.globalkey).sum_in_fifths()
-        result_dict = {'d_to_global_tonic': d_to_global_tonic,
-                       'd_to_local_tonic': d_to_local_tonic}
+    def metric1(chord: TonalHarmony) -> typing.Dict[str, int]:
+        assert isinstance(chord, TonalHarmony)
+
+        non_diatonic_sds_in_globalkey = chord.non_diatonic_sds(reference_key=chord.globalkey)
+        d_to_global_tonic = sum([abs(sd.to_spc().fifths()) for sd in non_diatonic_sds_in_globalkey])
+
+        non_diatonic_sds_in_localkey = chord.non_diatonic_sds(reference_key=chord.localkey)
+        d_to_local_tonic = sum([abs(sd.to_spc().fifths()) for sd in non_diatonic_sds_in_localkey])
+
+        global_tonic = chord.globalkey.to_str()
+        local_tonic = chord.localkey.to_str()
+
+        result_dict = {'chord': chord.chord_str,
+                       'pcs': chord.pcs,
+                       'global_tonic': global_tonic,
+                       'd_to_global': d_to_global_tonic,
+                       'local_tonic': local_tonic,
+                       'd_to_local': d_to_local_tonic}
+
         return result_dict
 
     @staticmethod
-    def df_chord_chromaticity(piece: pd.DataFrame) -> pd.DataFrame:
-        row_func = lambda row: ChromaticityMetrics.chord_chromaticity(TonalHarmony.from_df_row(row))
-        result = piece.apply(row_func,axis=1)
+    def metric1_df(piece: pd.DataFrame) -> pd.DataFrame:
+        row_func = lambda row: pd.Series(maybe_bind(TonalHarmony.from_df_row, ChromaticityMetrics.metric1)(row), dtype='object')
 
+        result1: pd.DataFrame = piece.apply(row_func, axis=1)
+        # nan_rows = result1.isnull().any(axis=1)
+        # nan_indices = result1.index[nan_rows]
+        result = result1.dropna()
+        # unpacked_df = pd.DataFrame(result.apply(lambda row: pd.Series(row)))
         return result
 
-def test_func(row:pd.DataFrame):
-    return (row['globalkey'],row['localkey'])
 
+def test_func(row: pd.DataFrame):
+    return (row['globalkey'], row['localkey'])
+
+
+def to_run():
+    df = pd.read_csv(
+        '/Users/xinyiguan/MusicData/dcml_corpora/tchaikovsky_seasons/harmonies/op37a12.tsv',
+        sep='\t')
+
+    result = ChromaticityMetrics.metric1_df(piece=df)
+    print(f'{result=}')
 
 
 if __name__ == '__main__':
-    df = pd.read_csv(
-        '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
-        sep='\t')
-    print(df.columns)
-    # result = Chromaticity1.chord_chromaticity(chord=TonalHarmony.from_df_row())
-
-    # result = df.apply(lambda row: Chromaticity1.chord_chromaticity(chord=TonalHarmony.from_df_row(df.iloc[row])))
-    # [MyClass(row['A'], row['B']) for index, row in df.iterrows()]
-    # [my_function(row) for index, row in df.iterrows()]
-    result = Chromaticity1.df_chord_chromaticity(piece=df)
-    print(f'{result=}')
+    to_run()

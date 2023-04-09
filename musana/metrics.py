@@ -9,27 +9,6 @@ from musana.harmony_types import Key, Degree, TonalHarmony, Triad
 import typing
 
 
-@dataclass
-class NonDiatonicPCs:
-    pcs: typing.List[SpelledPitchClass]
-    reference_key: Key
-
-    @property
-    def non_diatonic_pcs(self) -> typing.List[SpelledPitchClass]:
-        # non_diatonic_aspc = aspc([pc for pc in self.pcs if pc not in self.reference_key.pcs])
-        non_diatonic_pcs = [pc for pc in self.pcs if pc not in self.reference_key.pcs]
-        return non_diatonic_pcs
-
-    @property
-    def non_diatonic_sds(self) -> typing.List[Degree]:
-        non_diatonic_sds = [self.reference_key.find_sd(pc) for pc in self.non_diatonic_pcs]
-        return non_diatonic_sds
-
-
-    def sum_in_fifths(self) -> int:
-        sum_in_lo5 = sum([abs(sd.to_spc().fifths()) for sd in self.non_diatonic_sds])
-        return sum_in_lo5
-
 
 @dataclass
 class LerdahlDiatonicBasicSpace:
@@ -123,8 +102,8 @@ class PitchClassLevel(LerdahlDiatonicBasicSpace):
         raise NotImplementedError
 
 
+def test():
+    pass
+
 if __name__ == '__main__':
-    ndpcs=NonDiatonicPCs(pcs=[SpelledPitchClass(x) for x in ['C', 'Eb', 'G']], reference_key=Key.parse('C'))
-    print(f'{ndpcs=}')
-    print(f'{ndpcs.non_diatonic_pcs=}')
-    print(f'{ndpcs.non_diatonic_sds=}')
+    test()
