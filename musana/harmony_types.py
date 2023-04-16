@@ -724,8 +724,13 @@ def test2():
 
 
 def test3():
-    snp = SingleNumeralParts.parse('V+')
-    print(f'{snp.roman_numeral}')
+    numeral = Numeral.parse(numeral_str='ii/V', key_str="C")
+    # print(f'{numeral=}')
+    print(f'{numeral.head=}')
+    print("\n")
+    print(f'{numeral.tail}')
+    result = numeral.key_if_tonicized()
+    # print(f'{result=}')
 
 
 if __name__ == '__main__':
