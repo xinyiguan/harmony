@@ -6,8 +6,9 @@ from dataclasses import dataclass
 from typing import Self, Optional, Literal, Generic, TypeVar, Dict, Tuple, List
 
 import pandas as pd
-from pitchtypes import SpelledPitchClass, SpelledPitchClassArray, aspc
+from pitchtypes import SpelledPitchClass, SpelledPitchClassArray, aspc, SpelledIntervalClass, asic
 
+import metrics
 from harmonytypes import theory
 from harmonytypes.degree import Degree
 from harmonytypes.key import Key
@@ -38,6 +39,8 @@ class AbstractNumeral(abc.ABC):
                        "changes": numeral_match["changes"],
                        "relative_root": numeral_match["relativeroot"]}
         return result_dict
+
+
 
 
 @dataclass
@@ -77,6 +80,7 @@ class SimpleNumeral:
 class Chain(Generic[T]):
     head: T
     tail: Optional[Chain[T]]
+
 
 @dataclass
 class NumeralChain(Chain[SimpleNumeral]):
@@ -187,17 +191,33 @@ class Numeral(AbstractNumeral):
         key = Key(tonic=self.root, mode=mode)
         return key
 
+    def third(self) -> SpelledPitchClass:
+        scale_mode = self.harmony_quality.major_minor_mode
+        if scale_mode == 'major':
+            ic_to_add = SpelledIntervalClass('M3')
+        else:
+            ic_to_add = SpelledIntervalClass('m3')
+        result = self.root + ic_to_add
+        return result
+
+    def fifth(self) -> SpelledPitchClass:
+        the_root = self.root
+        result = the_root + SpelledIntervalClass('P5')
+        return result
+
 
 def test1():
     df: pd.DataFrame = pd.read_csv(
-        '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
+        '/Users/xinyiguan/MusicData/dcml_corpora/grieg_lyric_pieces/harmonies/op12n01.tsv',
         sep='\t')
 
-    df_row = df.iloc[74]
+    df_row = df.iloc[17]
     numeral = Numeral.from_df(df_row)
     result = numeral.non_diatonic_spcs(reference_key=numeral.global_key)
     print(f'{numeral=}')
     print(f'{result=}')
+    metric = metrics.within_chord_ci(numeral=numeral)
+    print(f'{metric=}')
 
 
 def test2():
@@ -207,6 +227,22 @@ def test2():
     degree = nc.degree()
     print(f'{degree=}')
 
+def test3():
+    df: pd.DataFrame = pd.read_csv(
+        '/Users/xinyiguan/MusicData/dcml_corpora/grieg_lyric_pieces/harmonies/op12n01.tsv',
+        sep='\t')
+
+    df_row = df.iloc[17]
+    numeral = Numeral.from_df(df_row)
+
+    ref_key = numeral.key_if_tonicized()
+    print(f'non-diatonic-notes: {numeral.non_diatonic_spcs(reference_key=ref_key)}')
+    index_m1 = metrics.pc_content_index_m1(numeral=numeral, reference_key=ref_key)
+    print(f'{index_m1=}')
+
+    new_pc = metrics.pc_content_index(numeral=numeral, nd_ref_key=ref_key, d5th_ref_tone=SpelledPitchClass("C"))
+    print(f'{new_pc=}')
+
 
 if __name__ == '__main__':
-    test2()
+    test3()

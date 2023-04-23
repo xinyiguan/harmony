@@ -1,4 +1,4 @@
-from pitchtypes import asic, SpelledPitchClass, aspc
+from pitchtypes import asic, SpelledPitchClass, aspc, SpelledIntervalClass
 
 from harmonytypes.degree import Degree
 from harmonytypes.key import Key
@@ -8,11 +8,10 @@ from metrics import pc_content_index_m1, pc_content_index_m2
 import os
 from collections import defaultdict, Counter
 from git import Repo
-import dimcat as dc
+import dimcat
 import ms3
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+
 from typing import Callable, Optional, TypeVar, Dict, Any
 from dcml_corpora.utils import STD_LAYOUT, CADENCE_COLORS, chronological_corpus_order, color_background, get_repo_name, \
     resolve_dir, value_count_df, get_repo_name, resolve_dir
@@ -33,9 +32,6 @@ def maybe_bind(f: Callable[[A], Optional[B]], g: Callable[[B], Optional[C]]) -> 
     return h
 
 
-
-
-
 # helper functions ==========================================
 def check_eligible_piece(piece_df: pd.DataFrame) -> bool:
     """
@@ -49,7 +45,8 @@ def check_eligible_piece(piece_df: pd.DataFrame) -> bool:
     else:
         return True
 
-def get_expanded_dfs(data_set: dc.Dataset) -> Dict[Any, pd.DataFrame]:
+
+def get_expanded_dfs(data_set: dimcat.Dataset) -> Dict[Any, pd.DataFrame]:
     expanded_df_from_piece = lambda p: p.get_facet('expanded')[1]
 
     # check for eligible pieces
@@ -64,6 +61,22 @@ def get_year_by_piecename(piece_name: str) -> int:
     return year
 
 
+def piece_wise_operation(piece_df:pd.DataFrame,
+                         chord_wise_operation: Callable[[Numeral], Dict[str, int]] ) -> pd.DataFrame:
+    row_func = lambda row: pd.Series(maybe_bind(Numeral.from_df, chord_wise_operation)(row),
+                                     dtype='object')
+
+    mask = piece_df['chord'] != '@none'
+    cleaned_piece_df = piece_df.dropna(subset=['chord']).reset_index(drop=True).loc[mask].reset_index(drop=True)
+    result: pd.DataFrame = cleaned_piece_df.apply(row_func, axis=1)
+    return result
+def dataset_wise_operation(dataset: dimcat.Dataset,
+                           piecewise_operation: Callable[[pd.DataFrame], pd.DataFrame]) -> pd.DataFrame:
+    expanded_df_dict = get_expanded_dfs(dataset)
+    pieces_dict = {key: piecewise_operation(value) for key, value in expanded_df_dict.items() if
+                   check_eligible_piece(value)}
+    pieces_df: pd.DataFrame = pd.concat([v.assign(corpus=k[0], piece=k[1]) for k, v in pieces_dict.items()])
+    return pieces_df
 
 
 # ===============================================================
@@ -119,6 +132,18 @@ def piecewise_pc_content_indices_df(piece_df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+# ===============================================================
+
+def within_key_distance(chord: Numeral, key: Key) -> Dict[str, int]:
+    distance:SpelledIntervalClass = key.tonic.interval_to(other=chord.root).fifths()
+    result_dict = {"d_within_key": distance}
+    return result_dict
+
+
+def between_keys_distance(global_key: Key, local_key: Key) -> Dict[str, int]:
+    distance = global_key.tonic.interval_to(other=local_key.tonic).fifths()
+    result_dict = {"d_between_keys": distance}
+    return result_dict
 
 
 def test():
@@ -126,10 +151,11 @@ def test():
         '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
         sep='\t')
 
-    df_row = df.iloc[1]
+    df_row = df.iloc[62]
     numeral = Numeral.from_df(df_row)
 
-    result = pc_content_indices_dict(chord=numeral)
+    result = within_key_distance(chord=numeral, key=numeral.local_key)
+    print(f'{numeral=}')
     print(f'{result=}')
 
 
@@ -141,24 +167,21 @@ def test2():
     debussy = pd.read_csv(
         '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
         sep='\t')
-    result = piecewise_pc_content_indices_df(piece_df=tchaikovsky)
+
+    result = ...
     print(f'{result=}')
 
 
 if __name__ == '__main__':
-    CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
-    CORPUS_PATH = resolve_dir(CORPUS_PATH)
-    concat_metadata_df = pd.read_csv('/Users/xinyiguan/Codes/musana/dcml_corpora/concatenated_metadata.tsv', sep='\t')
+    test()
 
-    # repo = Repo(CORPUS_PATH)
-    # notebook_repo = Repo('.', search_parent_directories=True)
-
-    dataset = dc.Dataset()
-    dataset.load(directory=CORPUS_PATH)
-
-    expanded_df_dict = get_expanded_dfs(dataset)
-    pieces_dict = {key: piecewise_pc_content_indices_df(value) for key, value in expanded_df_dict.items() if check_eligible_piece(value)}
-    pieces_df: pd.DataFrame = pd.concat([v.assign(corpus=k[0], piece=k[1]) for k, v in pieces_dict.items()])
-
-    print(pieces_df)
-
+    # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
+    # CORPUS_PATH = resolve_dir(CORPUS_PATH)
+    # concat_metadata_df = pd.read_csv('/Users/xinyiguan/Codes/musana/dcml_corpora/concatenated_metadata.tsv', sep='\t')
+    #
+    # mydataset = dimcat.Dataset()
+    # mydataset.load(directory=CORPUS_PATH)
+    #
+    # result = dataset_wise_operation(dataset=mydataset, piecewise_operation=piecewise_pc_content_indices_df)
+    #
+    # print(result)

@@ -53,6 +53,22 @@ class Key:
                        mode=localkey_mode)
         return instance
 
+    def parallel(self) -> Key:
+        raise NotImplementedError
+
+    def relative(self) -> Key:
+        if self.mode == 'major':
+            new_tonic = self.tonic - SpelledIntervalClass('m3')
+            relative_minor = Key(tonic=new_tonic, mode='natural_minor')
+            return relative_minor
+        else:
+            new_tonic = self.tonic + SpelledIntervalClass('m3')
+            relative_major = Key(tonic=new_tonic, mode='major')
+            return relative_major
+
+    def accidentals(self) -> int:
+        return abs(self.relative().tonic.fifths()) if self.mode == 'minor' else abs(self.tonic.fifths())
+
     def get_scale(self) -> List[SpelledPitchClass]:
         intervals = self.key_interval_dict[self.mode]
         scale = [self.tonic + intervals[i] for i in range(len(intervals))]

@@ -7,6 +7,11 @@ import pandas as pd
 from harmonytypes.key import Key
 from harmonytypes.quality import TertianHarmonyQuality
 
+@dataclass
+class Triad:
+    root: SpelledPitchClass
+    third: SpelledPitchClass
+    fifth: SpelledPitchClass
 
 @dataclass
 class SpelledChord:
