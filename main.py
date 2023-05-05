@@ -15,6 +15,8 @@ import dimcat
 import ms3
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objs as go
+
 import matplotlib.colors as mc
 import matplotlib.image as image
 import matplotlib.pyplot as plt
@@ -24,7 +26,7 @@ from matplotlib.lines import Line2D
 from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from palettable import cartocolors
-from typing import Callable, Optional, TypeVar, Dict, Any
+from typing import Callable, Optional, TypeVar, Dict, Any, Tuple, Literal
 from dcml_corpora.utils import STD_LAYOUT, CADENCE_COLORS, chronological_corpus_order, color_background, get_repo_name, \
     resolve_dir, value_count_df, get_repo_name, resolve_dir
 
@@ -161,18 +163,8 @@ def CI2_multilevel_ci_dict(chord: Numeral) -> Dict[str, int]:
 
 # ===============================================================
 class DataframePrep:
-
-    pass
-
-
-class GraphsPrep
-
-
-
-class PlotCI1_PitchClassContentIndex:
-
     @staticmethod
-    def load_data() -> pd.DataFrame:
+    def CI1_pc_content_index_df() -> pd.DataFrame:
         CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
         CORPUS_PATH = resolve_dir(CORPUS_PATH)
 
@@ -181,24 +173,42 @@ class PlotCI1_PitchClassContentIndex:
 
         dataset_df = dataset_wise_operation(dataset=mydataset,
                                             piecewise_operation=CI1_piecewise_pc_content_indices_df)
-        dataset_df.to_csv("temp_dataframes/pc_content_index_df", sep="\t")
-
+        dataset_df.to_csv("temp_dataframes/CI1_corpus_pc_content_df", sep="\t")
         return dataset_df
 
     @staticmethod
-    def adjust_lightness(color, amount=0.5):
-        import matplotlib.colors as mc
-        import colorsys
-        try:
-            c = mc.cnames[color]
-        except:
-            c = color
-        c = colorsys.rgb_to_hls(*mc.to_rgb(c))
-        return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+    def CI1_lollipop_pc_content_index_m2l_df() -> Tuple[str, pd.DataFrame]:
+        dataset_df = pd.read_csv("temp_dataframes/CI1_corpus_pc_content_df", sep='\t')
+        plot_ready_df = dataset_df.groupby("piece").agg(corpus=("corpus", "first"), year=("year", "first"),
+                                                        chord_num=("chord", "count"), max_val=("m2_LocalTonic", "max"),
+                                                        min_val=("m2_LocalTonic", "min"),
+                                                        pieces_avg=("m2_LocalTonic", np.mean)).reset_index()
 
+        plot_ready_df = plot_ready_df.assign(
+            corpus_year=plot_ready_df.groupby("corpus")["year"].transform(np.mean),
+            # take the mean of the pieces year in a corpus
+            corpus_avg=plot_ready_df.groupby("corpus")["pieces_avg"].transform(np.mean)).sort_values(
+            ["corpus_year", "year"]).reset_index()
+
+        corpus_dict = {corpus: i + 1 for i, corpus in
+                       enumerate(plot_ready_df.sort_values(["corpus_year", "year"])['corpus'].unique())}
+        piece_dict = {piece: i + 1 for i, piece in
+                      enumerate(plot_ready_df.sort_values(["corpus_year", "year"])['piece'])}
+
+        plot_ready_df = plot_ready_df.assign(
+            corpus_id=lambda x: x['corpus'].map(corpus_dict),
+            piece_id=lambda x: x['piece'].map(piece_dict))
+
+        path_to_plot = "temp_dataframes/CI1_lollipop_pc_content_m2l_df"
+        plot_ready_df.to_csv(path_to_plot, sep="\t")
+
+        return path_to_plot, plot_ready_df
+
+
+class GraphsPrep:
     @staticmethod
-    def scatter_plot_historical_CI1_pc_content_index(tsv_path: str):
-        plot_ready_df = PlotCI1_PitchClassContentIndex.load_data()
+    def CI1_scatter_pc_content_index():
+        plot_ready_df = pd.read_csv("temp_dataframes/CI1_corpus_pc_content_df", sep='\t')
 
         for idx, val in enumerate(
                 ["m1_GlobalTonic", "m2_GlobalTonic", "m1_LocalTonic", "m2_LocalTonic", "m1_TonicizedTonic",
@@ -207,67 +217,21 @@ class PlotCI1_PitchClassContentIndex:
                              hover_data=['piece', 'global_key', 'ndpc_GlobalTonic', 'local_key', 'ndpc_LocalTonic',
                                          'tonicized_key', 'ndpc_TonicizedTonic'],
                              opacity=0.5, title=f"{val}")
-            fig.write_html(f"figures/{val}.html")
+            fig.write_html(f"figures/CI1_scatter_{val}.html")
 
     @staticmethod
-    def lollipop_historical_CI1_pc_content_index_df():
-        dataset_df = PlotCI1_PitchClassContentIndex.load_data()
-        plot_ready_df = dataset_df.groupby("piece").agg(corpus=("corpus", "first"), year=("year", "first"),
-                                                        chord_num=("chord", "count"), max_val=("m2_LocalTonic", "max"),
-                                                        min_val=("m2_LocalTonic", "min"),
-                                                        pieces_avg=("m2_LocalTonic", np.mean)).reset_index()
+    def CI1_lollipop_pc_content_index_static():
+        plot_ready_df = pd.read_csv("temp_dataframes/CI1_lollipop_pc_content_m2l_df", sep='\t')
 
-        corpus_dict = {corpus: i + 1 for i, corpus in enumerate(plot_ready_df['corpus'].unique())}
-        piece_dict = {piece: i + 1 for i, piece in enumerate(plot_ready_df['piece'].unique())}
-
-        plot_ready_df = plot_ready_df.assign(
-            corpus_year=plot_ready_df.groupby("corpus")["year"].transform(np.mean),
-            # take the mean of the pieces year in a corpus
-            corpus_avg=plot_ready_df.groupby("corpus")["pieces_avg"].transform(np.mean)).sort_values(
-            ["corpus_year", "year"]).reset_index(drop=True)
-
-        plot_ready_df = plot_ready_df.assign(
-            corpus_id=lambda x: x['corpus'].map(corpus_dict),
-            piece_id=lambda x: x['piece'].map(piece_dict))
-
-        plot_ready_df.to_csv("temp_dataframes/lollipop_pc_content_index_m2l_df", sep="\t")
-        print(plot_ready_df["pieces"])
-
-    @staticmethod
-    def lollipop_chart_historical_CI1_pc_content_index(tsv_path: str):
-        """
-        Obtain the plot ready df with columns where each row is a piece (not chord):
-        [corpus, piece, year, chord_num, max val, min val, pieces_avg, corpus_avg]
-        only plot the (m2, local key) for now
-        """
-        dataset_df = PlotCI1_PitchClassContentIndex.load_data()
-        plot_ready_df = dataset_df.groupby("piece").agg(corpus=("corpus", "first"), year=("year", "first"),
-                                                        chord_num=("chord", "count"), max_val=("m2_LocalTonic", "max"),
-                                                        min_val=("m2_LocalTonic", "min"),
-                                                        pieces_avg=("m2_LocalTonic", np.mean)).reset_index()
-
-        corpus_dict = {corpus: i + 1 for i, corpus in enumerate(plot_ready_df['corpus'].unique())}
-        piece_dict = {piece: i + 1 for i, piece in enumerate(plot_ready_df['piece'].unique())}
-
-        plot_ready_df = plot_ready_df.assign(
-            corpus_year=plot_ready_df.groupby("corpus")["year"].transform(np.mean),
-            # take the mean of the pieces year in a corpus
-            corpus_avg=plot_ready_df.groupby("corpus")["pieces_avg"].transform(np.mean)).sort_values(
-            ["corpus_year", "year"]).reset_index()
-
-        plot_ready_df = plot_ready_df.assign(
-            corpus_id=lambda x: x['corpus'].map(corpus_dict),
-            piece_id=lambda x: x['piece'].map(piece_dict))
-
-        print(plot_ready_df["pieces"])
-        # the horizontal lines: ________________________________________________________________________________________
-        df_lines = plot_ready_df.groupby("corpus").agg(start_x=("year", min),
-                                                       end_x=("year", max),
+        # the horizontal lines for corpus mean: ________________________________________________________________________
+        df_lines = plot_ready_df.groupby("corpus").agg(start_x=("piece_id", min),
+                                                       end_x=("piece_id", max),
+                                                       year=("corpus_year", "first"),
                                                        corpus_id=("corpus_id", "first"),
                                                        y=("corpus_avg", "first")).reset_index()
 
         df_lines = pd.melt(df_lines,
-                           id_vars=["corpus", "corpus_id", "y"],
+                           id_vars=["corpus", "corpus_id", "year", "y"],
                            value_vars=["start_x", "end_x"],
                            var_name="type",
                            value_name="x")
@@ -285,7 +249,6 @@ class PlotCI1_PitchClassContentIndex:
         )
         df_lines = df_lines.sort_values(["corpus", "x_group"])
 
-        assert False
         # the coloring: _______________________________________________________________________________________________
         # Misc colors
         GREY82 = "#d1d1d1"
@@ -298,8 +261,18 @@ class PlotCI1_PitchClassContentIndex:
         COLORS = ["#486090", "#D7BFA6", "#04686B", "#d1495b", "#9CCCCC", "#7890A8",
                   "#C7B0C1", "#FFB703", "#B5C9C9", "#90A8C0", "#A8A890", "#ea7317"]
 
-        COLORS_DARK = [PlotCI1_PitchClassContentIndex.adjust_lightness(color, 0.8) for color in COLORS]
-        COLORS_LIGHT = [PlotCI1_PitchClassContentIndex.adjust_lightness(color, 1.2) for color in COLORS]
+        def adjust_lightness(color, amount=0.5):
+            import matplotlib.colors as mc
+            import colorsys
+            try:
+                c = mc.cnames[color]
+            except:
+                c = color
+            c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+            return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
+        COLORS_DARK = [adjust_lightness(color, 0.8) for color in COLORS]
+        COLORS_LIGHT = [adjust_lightness(color, 1.2) for color in COLORS]
 
         # Three colormaps with three variants
         cmap_regular = mc.LinearSegmentedColormap.from_list("regular", COLORS)
@@ -307,7 +280,7 @@ class PlotCI1_PitchClassContentIndex:
         cmap_light = mc.LinearSegmentedColormap.from_list("light", COLORS_LIGHT)
 
         # Function used to normalize corpus_id values into 0-1 scale.
-        normalize = mc.Normalize(vmin=1, vmax=len(plot_ready_df["corpus_id"]))
+        normalize = mc.Normalize(vmin=1, vmax=plot_ready_df["corpus_id"].max())
 
         # Horizontal lines
         HLINES = [-40, -20, 0, 20, 40, 60, 80]
@@ -321,7 +294,7 @@ class PlotCI1_PitchClassContentIndex:
             return ((x - CHORDS_MIN) / (CHORDS_MAX - CHORDS_MIN)) * (high - low) + low
 
         # fig starts : __________________________________________________________________________________________
-        fig, ax = plt.subplots(figsize=(15, 10))
+        fig, ax = plt.subplots(figsize=(35, 20))
 
         # Some layout stuff ----------------------------------------------
         # Background color
@@ -337,7 +310,7 @@ class PlotCI1_PitchClassContentIndex:
         # Vertical segments.
         # These represent the deviation of piece's ci value from the mean ci value of the corpus they belong.
         plt.vlines(
-            x="year",
+            x="piece_id",
             ymin="min_val",
             ymax="max_val",
             color=cmap_light(normalize(plot_ready_df["corpus_id"])),
@@ -347,17 +320,20 @@ class PlotCI1_PitchClassContentIndex:
         # Add horizontal segments ----------------------------------------
         # A grey line that connects mean values
         # The third argument is the format string, either empty or "-"
-        plt.plot("x", "y", "-", color=GREY40, data=df_lines)
+        # plt.plot("x", "y", "-", color=GREY40, data=df_lines)
 
         # These represent the mean corpus stats.
-        for corpus in df_lines["corpus_id"].unique():
+        for corpus in df_lines["corpus"].unique():
             d = df_lines[df_lines["corpus"] == corpus]
-            plt.plot("x_group", "y", "", color=cmap_dark(normalize(corpus)), lw=5, data=d, solid_capstyle="butt")
+            plt.plot("x_group", "y", "",
+                     color=cmap_dark(normalize(df_lines[df_lines["corpus"] == corpus]["corpus_id"].values[0])),
+                     lw=5,
+                     data=d, solid_capstyle="butt")
 
         # Add dots -------------------------------------------------------
-        # The dots indicate each episode's rating, with its size given by the number of votes.
+        # The dots indicate each piece's value, with its size given by the number of chords in the piece.
         plt.scatter(
-            "year",
+            "piece_id",
             "max_val",
             s=scale_to_interval(plot_ready_df["chord_num"]),
             color=cmap_regular(normalize(plot_ready_df["corpus_id"])),
@@ -365,7 +341,7 @@ class PlotCI1_PitchClassContentIndex:
             zorder=3
         )
         plt.scatter(
-            "year",
+            "piece_id",
             "min_val",
             s=scale_to_interval(plot_ready_df["chord_num"]),
             color=cmap_regular(normalize(plot_ready_df["corpus_id"])),
@@ -375,11 +351,15 @@ class PlotCI1_PitchClassContentIndex:
 
         # Add labels -----------------------------------------------------
         # They indicate the corpus and free us from using a legend.
-        midpoints = plot_ready_df["corpus_label_mid_pos"].unique()
-        for corpus, mid in enumerate(midpoints):
-            color = cmap_dark(normalize(corpus + 1))
+
+        corpus_label_midpoint = df_lines.groupby("corpus")["x"].mean()
+        corpus_label_pos_tuple_list = [(corpus, avg_x) for corpus, avg_x in
+                                       zip(corpus_label_midpoint.index, corpus_label_midpoint)]
+
+        for corpus, midpoint in corpus_label_pos_tuple_list:
+            color = cmap_dark(normalize(df_lines[df_lines["corpus"] == corpus]["corpus_id"].values[0] + 1))
             plt.text(
-                mid, 85, f"{corpus}",
+                midpoint, 85, f"{corpus}",
                 color=color,
                 weight="bold",
                 ha="center",
@@ -414,15 +394,16 @@ class PlotCI1_PitchClassContentIndex:
 
         # Y label
         plt.ylabel("Pitch class content index (mean)", fontsize=14)
-        plt.xlabel("Time (year)", fontsize=14)
+        # plt.xlabel("Time (year)", fontsize=14)
 
         # Save the plot!
         plt.savefig(
-            "figures/lollipop_fig_m2_l.png",
+            "figures/CI1_lollipop_m2l.png",
             dpi=300,
             bbox_inches="tight",
             pad_inches=0.3
         )
+
 
 
 # TEST ===============================================================
@@ -454,4 +435,4 @@ def test2():
 
 
 if __name__ == '__main__':
-    PlotCI1_PitchClassContentIndex.lollipop_historical_CI1_pc_content_index_df()
+    GraphsPrep.CI1_lollipop_pc_content_index_static()
