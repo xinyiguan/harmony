@@ -33,6 +33,10 @@ augmented_6th_chords = {'It': 'viio6(b3)/V',
                         'Ger': 'viio65(b3)/V',
                         'Fr': 'V43(b5)/V'}
 
-
 roman_numeral_scale_degree_dict = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7,
-                                      "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
+                                   "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7}
+
+diatonic_chords_in_major = {1: "I", 2: "ii", 3: "iii", 4: "IV", 5: "V", 6: "VI", 7: "VII"}
+diatonic_chords_in_natural_minor = {1: "i", 2: "iio", 3: "III", 4: "iv", 5: "v", 6: "VI", 7: "viio"}
+diatonic_chords_in_harmonic_minor = ...
+diatonic_chords_in_melodic_minor = ...

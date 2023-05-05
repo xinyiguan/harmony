@@ -19,21 +19,6 @@ Example:
 """
 
 
-def pc_content_index_m1(numeral: Numeral, reference_key: Key) -> float:
-    # line of fifth value center on C
-    non_diatonic_spcs = numeral.non_diatonic_spcs(reference_key=reference_key)
-    index = sum([x.fifths() for x in non_diatonic_spcs])
-    return index
-
-
-def pc_content_index_m2(numeral: Numeral, reference_key: Key) -> float:
-    # line of fifth value center on the reference tonic
-    non_diatonic_spcs = numeral.non_diatonic_spcs(reference_key=reference_key)
-    non_diatonic_scale_degrees = [reference_key.find_degree(x) for x in non_diatonic_spcs]
-    index = sum([x.fifth(mode=reference_key.mode) for x in non_diatonic_scale_degrees])
-    return index
-
-
 def pc_content_index(numeral: Numeral, nd_ref_key: Key, d5th_ref_tone: SpelledPitchClass) -> float:
     non_diatonic_spcs = numeral.non_diatonic_spcs(reference_key=nd_ref_key)
     index = sum([d5th(reference_tone=d5th_ref_tone, other=x) for x in non_diatonic_spcs])
@@ -46,20 +31,48 @@ def d5th(reference_tone: SpelledPitchClass, other: SpelledPitchClass) -> int:
     return result
 
 
-def within_chord_ci(numeral: Numeral) -> int:
-    non_diatonic_spcs = numeral.non_diatonic_spcs(reference_key=numeral.key_if_tonicized())
-    result = sum([d5th(reference_tone=numeral.key_if_tonicized().tonic, other=x) for x in non_diatonic_spcs])
-    return result
+def chromatic_third_measure(numeral: Numeral) -> int:
+    if numeral.chromatic_type() == "diatonic":
+        return 0
+    elif numeral.chromatic_type() == "mixture":
+        return 1
+    elif numeral.chromatic_type() == "tonicization":
+        return 2
+    else:
+        raise ValueError
+
+def chromatic_penalty(chord: Numeral) -> int:
+    scale = chord.local_key.get_scale()
+    pass
 
 
-def within_key_ci(reference_key: Key, root: SpelledPitchClass) -> int:
-    result = d5th(reference_tone=reference_key.tonic, other=root)
-    return result
+class ChromaticIndex_Def2:
+
+    @staticmethod
+    def within_chord_ci(numeral: Numeral) -> int:
+        non_diatonic_spcs = numeral.non_diatonic_spcs(reference_key=numeral.key_if_tonicized())
+        result = sum([d5th(reference_tone=numeral.key_if_tonicized().tonic, other=x) for x in non_diatonic_spcs])
+        return result
+    @staticmethod
+    def within_key_ci(reference_key: Key, root: SpelledPitchClass) -> int:
+        result = d5th(reference_tone=reference_key.tonic, other=root)
+        return result
+    @staticmethod
+    def between_keys_ci(source_key: Key, target_key: Key) -> int:
+        result = d5th(reference_tone=source_key.tonic, other=target_key.tonic)
+        return result
 
 
-def between_keys_ci(source_key: Key, target_key: Key) -> int:
-    result = d5th(reference_tone=source_key.tonic, other=target_key.tonic)
-    return result
+class ChromaticIndex_Def2_Yannis:
+    @staticmethod
+    def within_chord_ci(numeral: Numeral) -> int: # excluding the root
+        raise NotImplementedError
+    @staticmethod
+    def within_key_ci(reference_key: Key, root: SpelledPitchClass) -> int: # only the root
+        raise NotImplementedError
+    @staticmethod
+    def between_keys_ci(source_key: Key, target_key: Key)->int:
+        raise NotImplementedError
 
 
 def test():
@@ -70,9 +83,7 @@ def test():
     df_row = df.iloc[1]
     numeral = Numeral.from_df(df_row)
     print(f'{numeral=}')
-    result = pc_content_index_m2(numeral=numeral, reference_key=numeral.key_if_tonicized())
     print(f'non-diatonic-notes: {numeral.non_diatonic_spcs(reference_key=numeral.key_if_tonicized())}')
-    print(f'{result=}')
 
 
 def test1():
@@ -83,8 +94,6 @@ def test1():
 
     ref_key = numeral.key_if_tonicized()
     print(f'non-diatonic-notes: {numeral.non_diatonic_spcs(reference_key=ref_key)}')
-    index_m2 = pc_content_index_m2(numeral=numeral, reference_key=ref_key)
-    print(f'{index_m2=}')
 
     new_pc = pc_content_index(numeral=numeral, nd_ref_key=ref_key, d5th_ref_tone=ref_key.tonic)
     print(f'{new_pc=}')
