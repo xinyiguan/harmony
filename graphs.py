@@ -14,12 +14,26 @@ import plotly.graph_objs as go
 def CI1_lollipop_pc_content_index():
     plot_ready_df = pd.read_csv("temp_dataframes/CI1_lollipop_pc_content_m2l_df", sep='\t')
 
+    pretty_corpus_labels = {"corelli": "Corelli",
+                            "mozart_piano_sonatas": "Mozart Sonata",
+                            "beethoven_piano_sonatas": "Beethoven Sonata",
+                            "ABC": "ABC",
+                            "chopin_mazurkas": "Chopin Mazurka",
+                            "schumann_kinderszenen": "Schumann Kinderszenen",
+                            "liszt_pelerinage": "Liszt",
+                            "tchaikovsky_seasons": "Tchaikovsky",
+                            "dvorak_silhouettes": "Dvorak",
+                            "grieg_lyric_pieces": "Grieg",
+                            "debussy_suite_bergamasque": "Debussy",
+                            "medtner_tales": "Medtner"
+                            }
+
     # the horizontal lines for corpus mean: ________________________________________________________________________
     df_lines = plot_ready_df.groupby("corpus").agg(start_x=("piece_id", min),
                                                    end_x=("piece_id", max),
                                                    year=("corpus_year", "first"),
                                                    corpus_id=("corpus_id", "first"),
-                                                   y=("corpus_avg", "first")).reset_index()
+                                                   y=("corpus_avg", "first")).sort_values(["year"]).reset_index()
 
     # add some padding (epsilon) around the corpus line group
     df_lines["start_x_eps"] = df_lines["start_x"] - 0.1
@@ -93,7 +107,7 @@ def CI1_lollipop_pc_content_index():
                       y0=d["y"].values[0],
                       x1=d["end_x_eps"].values[0],
                       y1=d["y"].values[0],
-                      line=dict(color=corpus_color_dict[d["corpus"].values[0]], width=5))
+                      line=dict(color=corpus_color_dict[d["corpus"].values[0]], width=3))
 
     # Add dots -------------------------------------------------------
     # The dots indicate each piece's value, with its size given by the number of chords in the piece.
@@ -127,43 +141,35 @@ def CI1_lollipop_pc_content_index():
                                   '<b>Value</b>: %{customdata[3]}' +
                                   '<extra></extra>')
 
-
     # Add labels -----------------------------------------------------
     # They indicate the corpus and free us from using a legend.
 
-    df_lines["midpoint"] = df_lines.apply(lambda row: (row["start_x"] + row["end_x"]) / 2, axis=1)
-    # corpus_label_midpoint = df_lines.groupby("corpus")["x"].mean()
-    corpus_label_pos_tuple_list = [(corpus, avg_x) for corpus, avg_x in
-                                   zip(df_lines["corpus"], df_lines["midpoint"])]
+    df_lines["corpus_label_x"] = df_lines.apply(lambda row: (row["start_x"] + row["end_x"]) / 2, axis=1)
+    # to avoid overlapping of labels, create alternating heights
+    df_lines["corpus_label_y"] = [max(HLINES) + x for x in
+                                  [0 if i % 3 == 0 else 5 if i % 3 == 1 else -5 for i in range(df_lines.shape[0])]]
 
-    for corpus, midpoint in corpus_label_pos_tuple_list:
+    corpus_label_pos_tuple_list = [(corpus, x_pos, y_pos) for corpus, x_pos, y_pos in
+                                   zip(df_lines["corpus"], df_lines["corpus_label_x"], df_lines["corpus_label_y"])]
+
+    for corpus, x_pos, y_pos in corpus_label_pos_tuple_list:
         color = corpus_color_dict[corpus]
         fig.add_annotation(
-            x=midpoint, y=85, text=f"{corpus}",
-            # color=color,
-            # weight="bold",
-            # ha="center",
-            # va="center",
-            # fontsize=20,
-            # bbox=dict(
-            #     facecolor="none",
-            #     edgecolor=color,
-            #     linewidth=1,
-            #     boxstyle="round",
-            #     pad=0.2
-            # )
+            x=x_pos, y=y_pos, text=f"{corpus}",
+            showarrow=False,
+            font=dict(
+                # size=16,
+                color=color
+            ),
+            align="center",
+            bordercolor=color,
+            borderwidth=1
         )
-
+    fig.update_layout(showlegend=False)
     fig.write_html(f"figures/CI1_lollipop.html")
 
-
+    assert False
     # Customize layout -----------------------------------------------
-
-    # Hide spines
-    ax.spines["right"].set_color("none")
-    ax.spines["top"].set_color("none")
-    ax.spines["bottom"].set_color("none")
-    ax.spines["left"].set_color("none")
 
     # Customize y ticks
     # * Remove y axis ticks
@@ -178,14 +184,6 @@ def CI1_lollipop_pc_content_index():
     # Y label
     plt.ylabel("Pitch class content index (mean)", fontsize=14)
     # plt.xlabel("Time (year)", fontsize=14)
-
-    # Save the plot!
-    plt.savefig(
-        "figures/CI1_lollipop_m2l.png",
-        dpi=300,
-        bbox_inches="tight",
-        pad_inches=0.3
-    )
 
 
 def test_color():
