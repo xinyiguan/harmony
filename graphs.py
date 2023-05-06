@@ -21,24 +21,9 @@ def CI1_lollipop_pc_content_index():
                                                    corpus_id=("corpus_id", "first"),
                                                    y=("corpus_avg", "first")).reset_index()
 
-    df_lines = pd.melt(df_lines,
-                       id_vars=["corpus", "corpus_id", "year", "y"],
-                       value_vars=["start_x", "end_x"],
-                       var_name="type",
-                       value_name="x")
-
-    df_lines["x_group"] = np.where(df_lines["type"] == "start_x", df_lines["x"] + 0.1, df_lines["x"] - 0.1)
-    df_lines["x_group"] = np.where(
-        (df_lines["type"] == "start_x").values & (df_lines["x"] == np.min(df_lines["x"])).values,
-        df_lines["x_group"] - 0.1,
-        df_lines["x_group"]
-    )
-    df_lines["x_group"] = np.where(
-        (df_lines["type"] == "end_x").values & (df_lines["x"] == np.max(df_lines["x"])).values,
-        df_lines["x_group"] + 0.1,
-        df_lines["x_group"]
-    )
-    df_lines = df_lines.sort_values(["corpus", "x_group"])
+    # add some padding (epsilon) around the corpus line group
+    df_lines["start_x_eps"] = df_lines["start_x"] - 0.1
+    df_lines["end_x_eps"] = df_lines["end_x"] + 0.1
 
     # the coloring: _______________________________________________________________________________________________
     # Misc colors
@@ -100,96 +85,77 @@ def CI1_lollipop_pc_content_index():
     # Add horizontal segments ----------------------------------------
     # These represent the mean corpus stats.
 
+    # loop through each unique corpus in the data and plot a horizontal line
     for corpus in df_lines["corpus"].unique():
         d = df_lines[df_lines["corpus"] == corpus]
-        for i, row in d.iterrows():
-            # if the type is start_x, then set x0 to the corresponding x value
-            if row['type'] == 'start_x':
-                x0 = row['x']
-            # if the type is end_x, then set x1 to the corresponding x value
-            elif row['type'] == 'end_x':
-                x1 = row['x']
-                # add a new shape object to the figure with the corresponding x0, x1, and y values
-                fig.add_shape(
-                    type="line",
-                    x0=x0,
-                    y0=row['y'],
-                    x1=x1,
-                    y1=row['y'],
-                    line=dict(color=corpus_color_dict[d["corpus"].values[0]], width=3)
-                )
+        fig.add_shape(type="line",
+                      x0=d["start_x_eps"].values[0],
+                      y0=d["y"].values[0],
+                      x1=d["end_x_eps"].values[0],
+                      y1=d["y"].values[0],
+                      line=dict(color=corpus_color_dict[d["corpus"].values[0]], width=5))
 
     # Add dots -------------------------------------------------------
     # The dots indicate each piece's value, with its size given by the number of chords in the piece.
+
+    # hacking the color for each corpus: add a color column to the df
+    plot_ready_df['colors'] = plot_ready_df['corpus'].apply(lambda x: corpus_color_dict[x])
 
     fig.add_scatter(x=plot_ready_df["piece_id"],
                     y=plot_ready_df["min_val"],
                     mode="markers",
                     marker=dict(size=scale_to_interval(plot_ready_df["chord_num"]),
-                                color=corpus_color_dict[plot_ready_df["corpus"].values[0]]
-                                ),
-                    text=plot_ready_df["corpus", "piece", "year", "chord_num", "min_val"]
-                    )
+                                color=plot_ready_df.colors),
+                    customdata=np.stack((plot_ready_df['piece'], plot_ready_df['year'], plot_ready_df['chord_num'],
+                                         plot_ready_df['min_val']), axis=-1),
+                    hovertemplate='<b>Piece</b>: %{customdata[0]}<br>' +
+                                  '<b>Year</b>: %{customdata[1]}<br>' +
+                                  '<b>Chord num</b>: %{customdata[2]}<br>' +
+                                  '<b>Value</b>: %{customdata[3]}' +
+                                  '<extra></extra>')
 
     fig.add_scatter(x=plot_ready_df["piece_id"],
                     y=plot_ready_df["max_val"],
                     mode="markers",
                     marker=dict(size=scale_to_interval(plot_ready_df["chord_num"]),
-                                color=corpus_color_dict[plot_ready_df["corpus"].values[0]]
-                                ),
-                    text=plot_ready_df["corpus", "piece", "year", "chord_num", "max_val"]
-                    )
+                                color=plot_ready_df.colors),
+                    customdata=np.stack((plot_ready_df['piece'], plot_ready_df['year'], plot_ready_df['chord_num'],
+                                         plot_ready_df['max_val']), axis=-1),
+                    hovertemplate='<b>Piece</b>: %{customdata[0]}<br>' +
+                                  '<b>Year</b>: %{customdata[1]}<br>' +
+                                  '<b>Chord num</b>: %{customdata[2]}<br>' +
+                                  '<b>Value</b>: %{customdata[3]}' +
+                                  '<extra></extra>')
 
-
-
-
-
-
-
-    fig.write_html(f"figures/CI1_lollipop.html")
-    print(df)
-    assert False
 
     # Add labels -----------------------------------------------------
     # They indicate the corpus and free us from using a legend.
 
-    corpus_label_midpoint = df_lines.groupby("corpus")["x"].mean()
+    df_lines["midpoint"] = df_lines.apply(lambda row: (row["start_x"] + row["end_x"]) / 2, axis=1)
+    # corpus_label_midpoint = df_lines.groupby("corpus")["x"].mean()
     corpus_label_pos_tuple_list = [(corpus, avg_x) for corpus, avg_x in
-                                   zip(corpus_label_midpoint.index, corpus_label_midpoint)]
+                                   zip(df_lines["corpus"], df_lines["midpoint"])]
 
     for corpus, midpoint in corpus_label_pos_tuple_list:
-        color = cmap_dark(normalize(df_lines[df_lines["corpus"] == corpus]["corpus_id"].values[0] + 1))
-        # plt.text(
-        #     midpoint, 85, f"{corpus}",
-        #     color=color,
-        #     weight="bold",
-        #     ha="center",
-        #     va="center",
-        #     fontsize=10,
-        #     bbox=dict(
-        #         facecolor="none",
-        #         edgecolor=color,
-        #         linewidth=1,
-        #         boxstyle="round",
-        #         pad=0.2
-        #     )
-        # )
-
+        color = corpus_color_dict[corpus]
         fig.add_annotation(
-            midpoint, 85, f"{corpus}",
-            color=color,
-            weight="bold",
-            ha="center",
-            va="center",
-            fontsize=10,
-            bbox=dict(
-                facecolor="none",
-                edgecolor=color,
-                linewidth=1,
-                boxstyle="round",
-                pad=0.2
-            )
+            x=midpoint, y=85, text=f"{corpus}",
+            # color=color,
+            # weight="bold",
+            # ha="center",
+            # va="center",
+            # fontsize=20,
+            # bbox=dict(
+            #     facecolor="none",
+            #     edgecolor=color,
+            #     linewidth=1,
+            #     boxstyle="round",
+            #     pad=0.2
+            # )
         )
+
+    fig.write_html(f"figures/CI1_lollipop.html")
+
 
     # Customize layout -----------------------------------------------
 
