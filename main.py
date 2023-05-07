@@ -3,22 +3,18 @@ import os
 import numpy as np
 from pitchtypes import asic, SpelledPitchClass, aspc, SpelledIntervalClass
 
+from harmonytypes.chord import Triad
 from harmonytypes.degree import Degree
 from harmonytypes.key import Key
 from harmonytypes.numeral import Numeral
-from harmonytypes.quality import TertianHarmonyQuality
 from harmonytypes.util import maybe_bind
-from metrics import pc_content_index, ChromaticIndex_Def2
-from collections import defaultdict, Counter
-from git import Repo
+from metrics import pc_content_index, MultilevelChordChromaticity
+
 import dimcat
-import ms3
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objs as go
 
 import matplotlib.colors as mc
-import matplotlib.image as image
 import matplotlib.pyplot as plt
 
 from matplotlib.cm import ScalarMappable
@@ -29,6 +25,7 @@ from palettable import cartocolors
 from typing import Callable, Optional, TypeVar, Dict, Any, Tuple, Literal, List
 from dcml_corpora.utils import STD_LAYOUT, CADENCE_COLORS, chronological_corpus_order, color_background, get_repo_name, \
     resolve_dir, value_count_df, get_repo_name, resolve_dir
+from harmonytypes.LerdahlSpace import LerdahlDiatonicBasicSpace
 
 
 # helper functions: Data preprocessing ==========================================
@@ -87,7 +84,7 @@ def dataset_wise_operation(dataset: dimcat.Dataset,
     return pieces_df
 
 
-# ===============================================================
+# Defining measures: ===============================================================
 
 def CI1_pc_content_indices_dict(chord: Numeral) -> Dict[str, int]:
     global_key = chord.global_key
@@ -143,22 +140,77 @@ def CI1_piecewise_pc_content_indices_df(piece_df: pd.DataFrame) -> pd.DataFrame:
 
 # ===============================================================
 
-def CI2_multilevel_ci_dict(chord: Numeral) -> Dict[str, int]:
+def Lerdahl_distances_dict(chord: Numeral) -> Dict[str, int]:
+    global_key = chord.global_key
+    local_key = chord.local_key
+    key_if_tonicized = chord.key_if_tonicized()
+
+    global_tonic_triad = Triad.from_root_quality(root=global_key.tonic, quality=global_key.mode)
+    local_tonic_triad = Triad.from_root_quality(root=local_key.tonic, quality=local_key.mode)
+    chord_root_triad = Triad.from_root_quality(root=key_if_tonicized.tonic, quality=key_if_tonicized.mode)
+    #
+    # from_GlobalTonic_i = LerdahlDiatonicBasicSpace.i(key1=global_key, key2=global_key)
+    # from_LocalTonic_i = LerdahlDiatonicBasicSpace.i(key1=global_key, key2=local_key)
+    # from_ChordRoot_i = LerdahlDiatonicBasicSpace.i(key1=global_key, key2=key_if_tonicized)
+    #
+    # from_GlobalTonic_j = ...
+    # from_LocalTonic_j = ...
+    # from_ChordRoot_j = ...
+    #
+    # from_GlobalTonic_k = ...
+    # from_LocalTonic_k = ...
+    # from_ChordRoot_k = ...
+
+    from_GlobalTonic = LerdahlDiatonicBasicSpace.chord_distance(chord1=global_tonic_triad, chord2=chord)
+    from_LocalTonic = LerdahlDiatonicBasicSpace.chord_distance(chord1=local_tonic_triad, chord2=chord)
+    from_ChordRoot = LerdahlDiatonicBasicSpace.chord_distance(chord1=chord_root_triad, chord2=chord)
+
+    result_dict = {'chord': chord.numeral_string,
+                   'pcs': chord.spcs,
+
+                   'global_key': global_key.to_string(),
+                   'from_GlobalTonic': from_GlobalTonic,
+
+                   'local_key': local_key.to_string(),
+                   'from_LocalTonic': from_LocalTonic,
+
+                   'tonicized_key': key_if_tonicized.to_string(),
+                   'from_ChordRoot': from_ChordRoot}
+
+    return result_dict
+
+
+def piecewise_Lerdahl_distances_df(piece_df: pd.DataFrame) -> pd.DataFrame:
+    result = piece_wise_operation(piece_df=piece_df, chord_wise_operation=Lerdahl_distances_dict)
+    return result
+
+
+# ===============================================================
+
+def CI2_multilevel_chord_chromaticity_dict(chord: Numeral) -> Dict[str, int]:
     global_key = chord.global_key
     local_key = chord.local_key
 
-    within_chord = ChromaticIndex_Def2.within_chord_ci(numeral=chord)
-    within_key = ChromaticIndex_Def2.within_key_ci(reference_key=local_key, root=chord.root)
-    between_key = ChromaticIndex_Def2.between_keys_ci(source_key=global_key, target_key=local_key)
+    c_wc = MultilevelChordChromaticity.within_chord_ci(numeral=chord)
+    c_wk = MultilevelChordChromaticity.within_key_ci(reference_key=local_key, root=chord.root)
+    c_bk = MultilevelChordChromaticity.between_keys_ci(source_key=global_key, target_key=local_key)
+    chord_chromaticity_vector = np.array([c_wc, c_wk, c_bk])
 
     result_dict = {"chord": chord.numeral_string,
+                   "pcs": chord.spcs,
                    "nd_notes": chord.non_diatonic_spcs(reference_key=chord.key_if_tonicized()),
-                   "within_chord": within_chord,
+                   "within_chord": c_wc,
                    "(LK,root)": (local_key, chord.root),
-                   "within_key": within_key,
+                   "within_key": c_wk,
                    "(GK, LK)": (global_key, local_key),
-                   "between_key": between_key}
+                   "between_key": c_bk,
+                   "vector": chord_chromaticity_vector}
     return result_dict
+
+
+def CI2_piecewise_multilevel_chord_chromaticity_df(piece_df: pd.DataFrame) -> pd.DataFrame:
+    result = piece_wise_operation(piece_df=piece_df, chord_wise_operation=CI2_multilevel_chord_chromaticity_dict)
+    return result
 
 
 # ===============================================================
@@ -175,34 +227,6 @@ class DataframePrep:
                                             piecewise_operation=CI1_piecewise_pc_content_indices_df)
         dataset_df.to_csv("temp_dataframes/CI1_corpus_pc_content_df", sep="\t")
         return dataset_df
-
-    @staticmethod
-    def CI1_lollipop_pc_content_index_m2l_df() -> Tuple[str, pd.DataFrame]:
-        dataset_df = pd.read_csv("temp_dataframes/CI1_corpus_pc_content_df", sep='\t')
-        plot_ready_df = dataset_df.groupby("piece").agg(corpus=("corpus", "first"), year=("year", "first"),
-                                                        chord_num=("chord", "count"), max_val=("m2_LocalTonic", "max"),
-                                                        min_val=("m2_LocalTonic", "min"),
-                                                        pieces_avg=("m2_LocalTonic", np.mean)).reset_index()
-
-        plot_ready_df = plot_ready_df.assign(
-            corpus_year=plot_ready_df.groupby("corpus")["year"].transform(np.mean),
-            # take the mean of the pieces year in a corpus
-            corpus_avg=plot_ready_df.groupby("corpus")["pieces_avg"].transform(np.mean)).sort_values(
-            ["corpus_year", "year"]).reset_index()
-
-        corpus_dict = {corpus: i + 1 for i, corpus in
-                       enumerate(plot_ready_df.sort_values(["corpus_year", "year"])['corpus'].unique())}
-        piece_dict = {piece: i + 1 for i, piece in
-                      enumerate(plot_ready_df.sort_values(["corpus_year", "year"])['piece'])}
-
-        plot_ready_df = plot_ready_df.assign(
-            corpus_id=lambda x: x['corpus'].map(corpus_dict),
-            piece_id=lambda x: x['piece'].map(piece_dict))
-
-        path_to_plot = "temp_dataframes/CI1_lollipop_pc_content_m2l_df"
-        plot_ready_df.to_csv(path_to_plot, sep="\t")
-
-        return path_to_plot, plot_ready_df
 
     @staticmethod
     def CI1_lollipop_pc_content_df(M_set_type: str) -> Tuple[str, pd.DataFrame]:
@@ -240,6 +264,32 @@ class DataframePrep:
         for x in ["M1", "M2", "M3", "M4", "M5", "M6"]:
             DataframePrep.CI1_lollipop_pc_content_df(M_set_type=x)
 
+    @staticmethod
+    def CI2_multilevel_chord_chromaticity_df() -> pd.DataFrame:
+        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
+        CORPUS_PATH = resolve_dir(CORPUS_PATH)
+
+        mydataset = dimcat.Dataset()
+        mydataset.load(directory=CORPUS_PATH)
+
+        dataset_df = dataset_wise_operation(dataset=mydataset,
+                                            piecewise_operation=CI2_piecewise_multilevel_chord_chromaticity_df)
+        dataset_df.to_csv("temp_dataframes/CI2_multilevel_chord_chromaticity_df", sep="\t")
+        return dataset_df
+
+    @staticmethod
+    def Lerdahl_distances_df() -> pd.DataFrame:
+        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
+        CORPUS_PATH = resolve_dir(CORPUS_PATH)
+
+        mydataset = dimcat.Dataset()
+        mydataset.load(directory=CORPUS_PATH)
+
+        dataset_df = dataset_wise_operation(dataset=mydataset,
+                                            piecewise_operation=piecewise_Lerdahl_distances_df)
+        dataset_df.to_csv("temp_dataframes/Lerdahl_distances_df", sep="\t")
+        return dataset_df
+
 
 class GraphsPrep:
     @staticmethod
@@ -276,34 +326,43 @@ class GraphsPrep:
                 paper_bgcolor=BG_WHITE,
                 plot_bgcolor=BG_WHITE)
 
-            fig.add_scatter(x=plot_ready_df["year"],
-                            y=plot_ready_df[val],
-                            mode="markers",
-                            marker=dict(color=plot_ready_df.colors,
-                                        opacity=0.5),
-                            customdata=np.stack(
-                                (plot_ready_df['piece'], plot_ready_df['global_key'],
-                                 plot_ready_df['ndpc_GlobalTonic'],
-                                 plot_ready_df['local_key'], plot_ready_df['ndpc_LocalTonic'],
-                                 plot_ready_df['tonicized_key'],
-                                 plot_ready_df['ndpc_TonicizedTonic'],
-                                 plot_ready_df['chord'],
-                                 plot_ready_df['pcs']), axis=-1),
-                            hovertemplate='<b>Piece</b>: %{customdata[0]}<br>' +
-                                          '<b>Chord</b>: %{customdata[7]}<br>' +
-                                          '<b>pcs</b>: %{customdata[8]}<br>' +
-                                          '<b>Global Key</b>: %{customdata[1]}<br>' +
-                                          '<b>Non-diatonic pc (G)</b>: %{customdata[2]}<br>' +
-                                          '<b>Local Key</b>: %{customdata[3]}<br>' +
-                                          '<b>Non-diatonic pc (L)</b>: %{customdata[4]}<br>' +
-                                          '<b>Tonicized Key</b>: %{customdata[5]}<br>' +
-                                          '<b>Non-diatonic pc (root)</b>: %{customdata[6]}<br>' +
-                                          '<extra></extra>')
+            scatter = go.Scatter(x=plot_ready_df["year"],
+                                 y=plot_ready_df[val],
+                                 mode="markers",
+                                 marker=dict(color=plot_ready_df.colors,
+                                             opacity=0.5),
+                                 customdata=np.stack(
+                                     (plot_ready_df['piece'], plot_ready_df['global_key'],
+                                      plot_ready_df['ndpc_GlobalTonic'],
+                                      plot_ready_df['local_key'], plot_ready_df['ndpc_LocalTonic'],
+                                      plot_ready_df['tonicized_key'],
+                                      plot_ready_df['ndpc_TonicizedTonic'],
+                                      plot_ready_df['chord'],
+                                      plot_ready_df['pcs']), axis=-1),
+                                 hovertemplate='<b>Piece</b>: %{customdata[0]}<br>' +
+                                               '<b>Chord</b>: %{customdata[7]}<br>' +
+                                               '<b>pcs</b>: %{customdata[8]}<br>' +
+                                               '<b>Global Key</b>: %{customdata[1]}<br>' +
+                                               '<b>Non-diatonic pc (G)</b>: %{customdata[2]}<br>' +
+                                               '<b>Local Key</b>: %{customdata[3]}<br>' +
+                                               '<b>Non-diatonic pc (L)</b>: %{customdata[4]}<br>' +
+                                               '<b>Tonicized Key</b>: %{customdata[5]}<br>' +
+                                               '<b>Non-diatonic pc (root)</b>: %{customdata[6]}<br>' +
+                                               '<extra></extra>')
 
-            # fig = px.scatter(plot_ready_df, x="year", y=val, color="corpus",
-            #                  hover_data=['piece', 'global_key', 'ndpc_GlobalTonic', 'local_key', 'ndpc_LocalTonic',
-            #                              'tonicized_key', 'ndpc_TonicizedTonic'],
-            #                  opacity=0.5, title=f"{val}")
+            fig.add_trace(scatter)
+
+            # want to overlay a corpus-wise histogram of chord number within a piece
+            # for corpus in plot_ready_df["corpus"].unique():
+            #     d = plot_ready_df[plot_ready_df["corpus"] == corpus]
+            #     num_chord_in_year = d.groupby("year").agg(year=("year", "first"),
+            #                                               n_chord=("chord", "count")
+            #                                               )
+            #     corpus_density = go.Scatter(x=num_chord_in_year["year"],
+            #                                 y=num_chord_in_year["n_chord"],
+            #                                 mode='lines',
+            #                                 line=dict(color=corpus_color_dict[corpus]))
+            #     fig.add_trace(corpus_density)
 
             # update layout
             fig.update_layout(showlegend=True,
@@ -703,33 +762,6 @@ class GraphsPrep:
             GraphsPrep.CI1_lollipop_pc_content_index(M_set_type=x)
 
 
-# TEST ===============================================================
-
-def test():
-    df: pd.DataFrame = pd.read_csv(
-        '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
-        sep='\t')
-
-    df_row = df.iloc[62]
-    numeral = Numeral.from_df(df_row)
-
-    result = ...
-    print(f'{numeral=}')
-    print(f'{result=}')
-
-
-def test2():
-    tchaikovsky = pd.read_csv(
-        '/Users/xinyiguan/MusicData/dcml_corpora/tchaikovsky_seasons/harmonies/op37a12.tsv',
-        sep='\t')
-
-    debussy = pd.read_csv(
-        '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
-        sep='\t')
-
-    result = piece_wise_operation(piece_df=debussy, chord_wise_operation=CI2_multilevel_ci_dict)
-    print(f'{result=}')
-
-
 if __name__ == '__main__':
-    GraphsPrep.CI1_scatter_pc_content_index()
+    # GraphsPrep.CI1_scatter_pc_content_index()
+    DataframePrep.CI2_multilevel_chord_chromaticity_df()

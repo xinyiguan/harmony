@@ -1,5 +1,6 @@
 from typing import List
 
+import numpy as np
 import pandas as pd
 from pitchtypes import SpelledPitchClass, SpelledPitchClassArray, asic, aspc, SpelledIntervalClass
 
@@ -41,37 +42,54 @@ def chromatic_third_measure(numeral: Numeral) -> int:
     else:
         raise ValueError
 
+
 def chromatic_penalty(chord: Numeral) -> int:
     scale = chord.local_key.get_scale()
     pass
 
 
-class ChromaticIndex_Def2:
+class MultilevelChordChromaticity:
 
     @staticmethod
     def within_chord_ci(numeral: Numeral) -> int:
         non_diatonic_spcs = numeral.non_diatonic_spcs(reference_key=numeral.key_if_tonicized())
         result = sum([d5th(reference_tone=numeral.key_if_tonicized().tonic, other=x) for x in non_diatonic_spcs])
         return result
+
     @staticmethod
     def within_key_ci(reference_key: Key, root: SpelledPitchClass) -> int:
         result = d5th(reference_tone=reference_key.tonic, other=root)
         return result
+
     @staticmethod
     def between_keys_ci(source_key: Key, target_key: Key) -> int:
         result = d5th(reference_tone=source_key.tonic, other=target_key.tonic)
         return result
 
+    @staticmethod
+    def chord_chromaticity_vector() -> np.ndarray:
+        c_wc = MultilevelChordChromaticity.within_chord_ci()
+        c_wk = MultilevelChordChromaticity.within_key_ci()
+        c_bk = MultilevelChordChromaticity.between_keys_ci()
+        v = np.array([c_wc, c_wk, c_bk])
+        return v
+
+    @staticmethod
+    def multilevel_chord_chromaticity():
+        raise NotImplementedError
+
 
 class ChromaticIndex_Def2_Yannis:
     @staticmethod
-    def within_chord_ci(numeral: Numeral) -> int: # excluding the root
+    def within_chord_ci(numeral: Numeral) -> int:  # excluding the root
         raise NotImplementedError
+
     @staticmethod
-    def within_key_ci(reference_key: Key, root: SpelledPitchClass) -> int: # only the root
+    def within_key_ci(reference_key: Key, root: SpelledPitchClass) -> int:  # only the root
         raise NotImplementedError
+
     @staticmethod
-    def between_keys_ci(source_key: Key, target_key: Key)->int:
+    def between_keys_ci(source_key: Key, target_key: Key) -> int:
         raise NotImplementedError
 
 

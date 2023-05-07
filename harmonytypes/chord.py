@@ -1,17 +1,33 @@
 from dataclasses import dataclass
 from typing import Self, List, Literal, Optional
-from pitchtypes import SpelledPitchClassArray, SpelledPitchClass, aspc
+from pitchtypes import SpelledPitchClassArray, SpelledPitchClass, aspc, SpelledIntervalClass
 
 import pandas as pd
 
 from harmonytypes.key import Key
 from harmonytypes.quality import TertianHarmonyQuality
 
+
 @dataclass
 class Triad:
     root: SpelledPitchClass
     third: SpelledPitchClass
     fifth: SpelledPitchClass
+
+    @classmethod
+    def from_root_quality(cls, root: SpelledPitchClass, quality: Literal["major", "minor"]) -> Self:
+        if quality == "major":
+            third = root + SpelledIntervalClass("M3")
+        elif "minor" in quality:
+            third = root + SpelledIntervalClass("m3")
+        else:
+            raise ValueError
+        fifth = root + SpelledIntervalClass("P5")
+        instance = cls(root=root,
+                       third=third,
+                       fifth=fifth)
+        return instance
+
 
 @dataclass
 class SpelledChord:

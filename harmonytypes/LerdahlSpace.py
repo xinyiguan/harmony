@@ -92,7 +92,6 @@ def test():
                      global_key=Key.from_string(key_str="C"), local_key=Key.from_string("C"),
                      harmony_quality=TertianHarmonyQuality(quality_type=SpelledIntervalClassArray(["M3", "m3"])))
 
-
     triad = Triad(root=SpelledPitchClass("C"),
                   third=SpelledPitchClass("E"),
                   fifth=SpelledPitchClass("G"))
@@ -101,14 +100,16 @@ def test():
                    third=SpelledPitchClass("B"),
                    fifth=SpelledPitchClass("D"))
 
+    triad3 = Triad.from_root_quality(root=SpelledPitchClass("C"), quality="major")
+
     space1 = LerdahlDiatonicBasicSpace.from_triad_with_key(key=Key.from_string("C"),
                                                            triad=triad)
     space2 = LerdahlDiatonicBasicSpace.from_triad_with_key(key=Key.from_string("C"),
-                                                           triad=triad2)
+                                                           triad=triad3)
 
     # result = space1.k(target_basic_space=space2)
     # result = space1.j(chord1, chord2)
-    result = space1.chord_distance(chord1, chord2)
+    result = space2.chord_distance(chord1, chord2)
 
     print(type(result))
     print(f'{result=}')
