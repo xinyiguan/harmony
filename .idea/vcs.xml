@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/ABC" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/beethoven_piano_sonatas" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/chopin_mazurkas" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/corelli" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/debussy_suite_bergamasque" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/dvorak_silhouettes" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/grieg_lyric_pieces" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/liszt_pelerinage" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/medtner_tales" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/mozart_piano_sonatas" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/schumann_kinderszenen" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/dcml_corpora/tchaikovsky_seasons" vcs="Git" />
+  </component>
+</project>
