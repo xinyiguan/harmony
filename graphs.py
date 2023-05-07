@@ -3,6 +3,7 @@ import urllib
 from typing import Literal
 from urllib.request import urlopen
 import matplotlib.colors as mc
+from plotly.offline import init_notebook_mode, iplot
 
 import numpy as np
 import pandas as pd
@@ -65,8 +66,27 @@ def CI1_lollipop_pc_content_index():
     def scale_to_interval(x, low=5, high=30):
         return ((x - CHORDS_MIN) / (CHORDS_MAX - CHORDS_MIN)) * (high - low) + low
 
-    # fig starts : __________________________________________________________________________________________
-    fig = go.Figure()
+    # Add annotation of the data: def of metrics as the title
+    set_M_annotation_dict = {"M1": r'$M_1 = \{d_{5th} (rt=C, a=nd(k=GlobalKey, A))}$',
+                             "M2": r'$M_2 = \{d_{5th} (rt=root, a=nd(k=GlobalKey, A))}$',
+                             "M3": r'$M_3 = \{d_{5th} (rt=C, a=nd(k=LocalKey, A))}$',
+                             "M4": r'$M_4 = \{d_{5th} (rt=root, a=nd(k=LocalKey, A))}$',
+                             "M5": r'$M_5 = \{d_{5th} (rt=C, a=nd(k=Tonicization(r, A), A))}$',
+                             "M6": r'$M_6 = \{d_{5th} (rt=root, a=nd(k=Tonicization(r,A), A))}$',
+                             }
+
+    # Customize layout -----------------------------------------------
+    layout = go.Layout(title=set_M_annotation_dict["M4"],
+                       # xaxis=go.layout.XAxis(
+                       #     title='Pieces (* almost in chronological order)',
+                       #     showticklabels=False),
+                       # yaxis=go.layout.YAxis(
+                       #     title='Values'
+                       # ),
+                       showlegend=False)
+
+    # Fig starts : __________________________________________________________________________________________
+    fig = go.Figure(layout=layout)
 
     # Some layout stuff ----------------------------------------------
     # Background color
@@ -165,25 +185,40 @@ def CI1_lollipop_pc_content_index():
             bordercolor=color,
             borderwidth=1
         )
-    fig.update_layout(showlegend=False)
-    fig.write_html(f"figures/CI1_lollipop.html")
 
-    assert False
-    # Customize layout -----------------------------------------------
+    # fig.add_annotation(x=max(plot_ready_df["piece_id"]) + 50,
+    #                    y=min(HLINES) + 20,
+    #                    text='<b>Definition</b> of set $M$:<br>' +
+    #                         '%{set_M_annotation_dict["M4"]} <br>',
+    #                    showarrow=False,
+    #                    bordercolor=GREY70,
+    #                    borderwidth=1
+    #                    )
 
-    # Customize y ticks
-    # * Remove y axis ticks
-    # * Put labels on both right and left sides
-    plt.tick_params(axis="y", labelright=True, length=0)
-    plt.yticks(HLINES, fontsize=11, color=GREY30)
-    plt.ylim(0.98 * (-40), 80 * 1.02)
+    # Add custom legend for bubble size ----------------------------------------------
+    # Horizontal position for the dots and their labels
+    def generate_dot_legend_pos(middle_number: int, interval: int):
+        return [middle_number - (interval * 2), middle_number - interval, middle_number + interval,
+                middle_number + (interval * 2)]
 
-    # Remove ticks and legends
-    plt.xticks([], "")
+    x_pos = generate_dot_legend_pos(middle_number=plot_ready_df["piece_id"].mean(), interval=4)
+    chord_num = np.array([150, 300, 450, 600])
 
-    # Y label
-    plt.ylabel("Pitch class content index (mean)", fontsize=14)
-    # plt.xlabel("Time (year)", fontsize=14)
+    fig.add_scatter(x=x_pos,
+                    y=[min(plot_ready_df["min_val"]) - 20] * len(x_pos),
+                    mode="markers",
+                    marker=dict(size=scale_to_interval(chord_num), color="black")
+
+                    )
+    fig.add_annotation(x=np.mean(x_pos),
+                       y=min(plot_ready_df["min_val"]) - 30,
+                       text="Number of chords per piece",
+                       showarrow=False)
+
+    fig.update_layout(showlegend=False,
+                      xaxis_title="Pieces (* almost in chronological order)",
+                      yaxis_title="Values")
+    fig.write_html(f"figures/CI1_lollipop.html", include_plotlyjs='cdn', full_html=True)
 
 
 def test_color():
