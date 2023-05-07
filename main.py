@@ -256,10 +256,22 @@ class GraphsPrep:
         corpus_color_dict = {corpus: color for corpus, color in zip(plot_ready_df['corpus'].unique(), COLORS)}
         plot_ready_df['colors'] = plot_ready_df['corpus'].apply(lambda x: corpus_color_dict[x])
 
+        # Add annotation of the data: def of metrics as the title
+        set_M_annotation_dict = {"M1": r'$M_1 = \{d_{5th} (rt=C, a=nd(k=GlobalKey, A))}$',
+                                 "M2": r'$M_2 = \{d_{5th} (rt=root, a=nd(k=GlobalKey, A))}$',
+                                 "M3": r'$M_3 = \{d_{5th} (rt=C, a=nd(k=LocalKey, A))}$',
+                                 "M4": r'$M_4 = \{d_{5th} (rt=root, a=nd(k=LocalKey, A))}$',
+                                 "M5": r'$M_5 = \{d_{5th} (rt=C, a=nd(k=Tonicization(r, A), A))}$',
+                                 "M6": r'$M_6 = \{d_{5th} (rt=root, a=nd(k=Tonicization(r,A), A))}$',
+                                 }
 
-        for idx, val in enumerate(["M1", "M2", "M3", "M4", "M5", "M6"]):
-            # fig starts here _________________________________________________________________
-            fig = go.Figure()
+        for val in ["M1", "M2", "M3", "M4", "M5", "M6"]:
+            # Customize layout -----------------------------------------------
+            layout = go.Layout(title=set_M_annotation_dict[val],
+                               showlegend=False)
+
+            # Fig starts : __________________________________________________________________________________________
+            fig = go.Figure(layout=layout)
             fig.update_layout(
                 paper_bgcolor=BG_WHITE,
                 plot_bgcolor=BG_WHITE)
@@ -270,10 +282,16 @@ class GraphsPrep:
                             marker=dict(color=plot_ready_df.colors,
                                         opacity=0.5),
                             customdata=np.stack(
-                                (plot_ready_df['piece'], plot_ready_df['global_key'], plot_ready_df['ndpc_GlobalTonic'],
-                                 plot_ready_df['local_key'], plot_ready_df['ndpc_LocalTonic'], plot_ready_df['tonicized_key'],
-                                 plot_ready_df['ndpc_TonicizedTonic']), axis=-1),
+                                (plot_ready_df['piece'], plot_ready_df['global_key'],
+                                 plot_ready_df['ndpc_GlobalTonic'],
+                                 plot_ready_df['local_key'], plot_ready_df['ndpc_LocalTonic'],
+                                 plot_ready_df['tonicized_key'],
+                                 plot_ready_df['ndpc_TonicizedTonic'],
+                                 plot_ready_df['chord'],
+                                 plot_ready_df['pcs']), axis=-1),
                             hovertemplate='<b>Piece</b>: %{customdata[0]}<br>' +
+                                          '<b>Chord</b>: %{customdata[7]}<br>' +
+                                          '<b>pcs</b>: %{customdata[8]}<br>' +
                                           '<b>Global Key</b>: %{customdata[1]}<br>' +
                                           '<b>Non-diatonic pc (G)</b>: %{customdata[2]}<br>' +
                                           '<b>Local Key</b>: %{customdata[3]}<br>' +
@@ -282,11 +300,15 @@ class GraphsPrep:
                                           '<b>Non-diatonic pc (root)</b>: %{customdata[6]}<br>' +
                                           '<extra></extra>')
 
-
             # fig = px.scatter(plot_ready_df, x="year", y=val, color="corpus",
             #                  hover_data=['piece', 'global_key', 'ndpc_GlobalTonic', 'local_key', 'ndpc_LocalTonic',
             #                              'tonicized_key', 'ndpc_TonicizedTonic'],
             #                  opacity=0.5, title=f"{val}")
+
+            # update layout
+            fig.update_layout(showlegend=True,
+                              xaxis_title="Time (year)",
+                              yaxis_title="Pitch class content index")
             fig.write_html(f"figures/CI1_scatter_{val}.html")
 
     @staticmethod
