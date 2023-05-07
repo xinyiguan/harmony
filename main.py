@@ -246,12 +246,47 @@ class GraphsPrep:
     def CI1_scatter_pc_content_index():
         plot_ready_df = pd.read_csv("temp_dataframes/CI1_corpus_pc_content_df", sep='\t')
 
-        for idx, val in enumerate(
-                ["M1", "M2", "M3", "M4", "M5", "M6"]):
-            fig = px.scatter(plot_ready_df, x="year", y=val, color="corpus",
-                             hover_data=['piece', 'global_key', 'ndpc_GlobalTonic', 'local_key', 'ndpc_LocalTonic',
-                                         'tonicized_key', 'ndpc_TonicizedTonic'],
-                             opacity=0.5, title=f"{val}")
+        # Some plot color settings:
+        BG_WHITE = "#fafaf5"
+        # These colors (and their dark and light variant) are assigned to each of the 12 corpora
+        COLORS = ["#486090", "#D7BFA6", "#04686B", "#d1495b", "#9CCCCC", "#7890A8",
+                  "#C7B0C1", "#FFB703", "#B5C9C9", "#90A8C0", "#A8A890", "#ea7317"]
+
+        # Coloring the pieces in each corpus, each corpus corresponds to one color
+        corpus_color_dict = {corpus: color for corpus, color in zip(plot_ready_df['corpus'].unique(), COLORS)}
+        plot_ready_df['colors'] = plot_ready_df['corpus'].apply(lambda x: corpus_color_dict[x])
+
+
+        for idx, val in enumerate(["M1", "M2", "M3", "M4", "M5", "M6"]):
+            # fig starts here _________________________________________________________________
+            fig = go.Figure()
+            fig.update_layout(
+                paper_bgcolor=BG_WHITE,
+                plot_bgcolor=BG_WHITE)
+
+            fig.add_scatter(x=plot_ready_df["year"],
+                            y=plot_ready_df[val],
+                            mode="markers",
+                            marker=dict(color=plot_ready_df.colors,
+                                        opacity=0.5),
+                            customdata=np.stack(
+                                (plot_ready_df['piece'], plot_ready_df['global_key'], plot_ready_df['ndpc_GlobalTonic'],
+                                 plot_ready_df['local_key'], plot_ready_df['ndpc_LocalTonic'], plot_ready_df['tonicized_key'],
+                                 plot_ready_df['ndpc_TonicizedTonic']), axis=-1),
+                            hovertemplate='<b>Piece</b>: %{customdata[0]}<br>' +
+                                          '<b>Global Key</b>: %{customdata[1]}<br>' +
+                                          '<b>Non-diatonic pc (G)</b>: %{customdata[2]}<br>' +
+                                          '<b>Local Key</b>: %{customdata[3]}<br>' +
+                                          '<b>Non-diatonic pc (L)</b>: %{customdata[4]}<br>' +
+                                          '<b>Tonicized Key</b>: %{customdata[5]}<br>' +
+                                          '<b>Non-diatonic pc (root)</b>: %{customdata[6]}<br>' +
+                                          '<extra></extra>')
+
+
+            # fig = px.scatter(plot_ready_df, x="year", y=val, color="corpus",
+            #                  hover_data=['piece', 'global_key', 'ndpc_GlobalTonic', 'local_key', 'ndpc_LocalTonic',
+            #                              'tonicized_key', 'ndpc_TonicizedTonic'],
+            #                  opacity=0.5, title=f"{val}")
             fig.write_html(f"figures/CI1_scatter_{val}.html")
 
     @staticmethod
@@ -292,7 +327,7 @@ class GraphsPrep:
         GREY30 = "#4d4d4d"
         BG_WHITE = "#fafaf5"
 
-        # These colors (and their dark and light variant) are assigned to each of the 9 seasons
+        # These colors (and their dark and light variant) are assigned to each of the 12 corpora
         COLORS = ["#486090", "#D7BFA6", "#04686B", "#d1495b", "#9CCCCC", "#7890A8",
                   "#C7B0C1", "#FFB703", "#B5C9C9", "#90A8C0", "#A8A890", "#ea7317"]
 
@@ -675,4 +710,4 @@ def test2():
 
 
 if __name__ == '__main__':
-    GraphsPrep.CI1_lollipop_graphs()
+    GraphsPrep.CI1_scatter_pc_content_index()
