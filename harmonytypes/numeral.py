@@ -12,6 +12,8 @@ from harmonytypes import theory
 from harmonytypes.degree import Degree
 from harmonytypes.key import Key
 from harmonytypes.quality import TertianHarmonyQuality
+from harmonytypes.stufentheorie import major_diatonic_system_dict, minor_diatonic_system_dict, \
+    combined_major_minor_system_dict, simple_mixture_dict, secondary_mixture_dict, double_mixture_dict
 
 T = TypeVar('T')
 
@@ -115,7 +117,11 @@ class NumeralChain(Chain[SimpleNumeral]):
 
 @dataclass
 class Numeral(AbstractNumeral):
-    numeral_string: str
+    # conforming to the DCML standard
+
+    chord_string: str
+    pure_numeral_string: str  # stripped away all figbass, changes, just preserve the numeral (applied chord) format
+
     global_key: Key
     local_key: Key
     # degree: Degree
@@ -156,6 +162,9 @@ class Numeral(AbstractNumeral):
 
         # degree = Degree.from_string(degree_str=AbstractNumeral.parse_numeral(df_row["chord"])["numeral"])
 
+        relative_root = "" if pd.isna(df_row["relativeroot"]) else "/" + str(df_row["relativeroot"])
+        pure_numeral_string = str(df_row["numeral"]) + str(relative_root)
+
         harmony_quality = TertianHarmonyQuality.from_chord_type_str(chord_type=df_row["chord_type"])
         pcs_sd_int_in_fifths_in_localkey = [int(x) for x in list(standardize_input(df_row['chord_tones']) +
                                                                  standardize_input(df_row['added_tones']))]
@@ -167,7 +176,8 @@ class Numeral(AbstractNumeral):
         root = Key.find_spc(key=local_key, degree=Degree.from_fifth(int(df_row['root']), mode=local_key.mode))
         bass = Key.find_spc(key=local_key, degree=Degree.from_fifth(int(df_row['bass_note']), mode=local_key.mode))
 
-        instance = cls(numeral_string=chord_str,
+        instance = cls(chord_string=chord_str,
+                       pure_numeral_string=pure_numeral_string,
                        local_key=local_key,
                        global_key=global_key,
                        harmony_quality=harmony_quality,
@@ -216,17 +226,56 @@ class Numeral(AbstractNumeral):
         return diatonic_chord
 
     def numeral(self) -> str:
-        numeral_match = theory.DCML_numeral_regex(self.numeral_string)
+        numeral_match = theory.DCML_numeral_regex(self.chord_string)
         result = numeral_match["numeral"]
         return result
 
-    def chromatic_type(self) -> Literal["diatonic", "mixture", "tonicization"]:
-        if "/" in self.numeral_string:
-            return "tonicization"
-        elif self.diatonic_chord(ref_key=self.local_key) == self.numeral():
-            return "diatonic"
+    # ============================================================================
+    # METHODS relevant to the Stufentheorie
+    def select_diatonic_dict(self) -> Dict:
+        if self.local_key.mode == "major":
+            selected_diatonic_dict = major_diatonic_system_dict
+        elif self.local_key == "natural_minor":
+            selected_diatonic_dict = minor_diatonic_system_dict
         else:
             raise NotImplementedError
+        return selected_diatonic_dict
+
+    def _check_numeral_str_type(self) -> Literal["applied_chord", "in_system", "neither"]:
+        """
+        "applied_chord" means applied chord
+        "in_system" means the numeral is in the combined major-minor system (one of the Stufen)
+        "neither" means the numeral is a result of tonicization?
+        """
+
+        if "/" in self.pure_numeral_string:
+            return "applied_chord"
+        elif self.pure_numeral_string in combined_major_minor_system_dict:
+            return "in_system"
+        else:
+            return "neither"
+
+    def _chromatic_type(self) -> Literal[
+        "diatonic", "simple_mixture", "secondary_mixture", "double_mixture", "tonicization", "applied_chord"]:
+
+        if "/" in self.pure_numeral_string:
+            return "applied_chord"
+
+        elif self.pure_numeral_string in major_diatonic_system_dict or minor_diatonic_system_dict:
+            return "diatonic"
+
+        elif self.pure_numeral_string in simple_mixture_dict:
+            return "simple_mixture"
+
+        elif self.pure_numeral_string in secondary_mixture_dict:
+            return "secondary_mixture"
+
+        elif self.pure_numeral_string in double_mixture_dict:
+            return "double_mixture"
+
+        else:
+            return "tonicization"
+
 
 
 def test1():
@@ -250,19 +299,26 @@ def test2():
 
 
 def test3():
+    # df: pd.DataFrame = pd.read_csv(
+    #     '/Users/xinyiguan/MusicData/dcml_corpora/grieg_lyric_pieces/harmonies/op12n01.tsv',
+    #     sep='\t')
     df: pd.DataFrame = pd.read_csv(
-        '/Users/xinyiguan/MusicData/dcml_corpora/grieg_lyric_pieces/harmonies/op12n01.tsv',
+        '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
         sep='\t')
 
-    df_row = df.iloc[20]
+    df_row = df.iloc[19]
     numeral = Numeral.from_df(df_row)
     print(f"{numeral=}")
 
-    ref_key = numeral.key_if_tonicized()
-    print(f'non-diatonic-notes: {numeral.non_diatonic_spcs(reference_key=ref_key)}')
+    print(f'{numeral.pure_numeral_string=}')
 
-    diatonic_chord = numeral.diatonic_chord(ref_key=numeral.local_key)
-    print(f'{diatonic_chord=}')
+    print(f'{numeral.chromatic_type()}')
+
+    # ref_key = numeral.key_if_tonicized()
+    # print(f'non-diatonic-notes: {numeral.non_diatonic_spcs(reference_key=ref_key)}')
+    #
+    # diatonic_chord = numeral.diatonic_chord(ref_key=numeral.local_key)
+    # print(f'{diatonic_chord=}')
 
     # index_m1 = metrics.pc_content_index_m1(numeral=numeral, reference_key=ref_key)
     # print(f'{index_m1=}')

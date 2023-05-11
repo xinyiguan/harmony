@@ -8,25 +8,7 @@ from harmonytypes.key import Key
 from harmonytypes.quality import TertianHarmonyQuality
 
 
-@dataclass
-class Triad:
-    root: SpelledPitchClass
-    third: SpelledPitchClass
-    fifth: SpelledPitchClass
 
-    @classmethod
-    def from_root_quality(cls, root: SpelledPitchClass, quality: Literal["major", "minor"]) -> Self:
-        if quality == "major":
-            third = root + SpelledIntervalClass("M3")
-        elif "minor" in quality:
-            third = root + SpelledIntervalClass("m3")
-        else:
-            raise ValueError
-        fifth = root + SpelledIntervalClass("P5")
-        instance = cls(root=root,
-                       third=third,
-                       fifth=fifth)
-        return instance
 
 
 @dataclass
@@ -53,7 +35,7 @@ class SpelledChord:
 
 
 def test():
-    chord = Chord(pcs=aspc(things=[0, 7, 1]))
+    chord = SpelledChord(pcs=aspc(things=[0, 7, 1]))
     print(f'{chord=}')
     result = chord.non_diatonic_pcs(key=Key.from_string('C'))
     print(f'{result=}')
