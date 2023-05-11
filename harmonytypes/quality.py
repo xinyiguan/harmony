@@ -109,6 +109,9 @@ class TertianHarmonyQuality:
     def __repr__(self):
         return f'{self.quality_type}'
 
+    def __getitem__(self, idx):
+        return self.quality_type[idx]
+
     @classmethod
     def parse(cls,
               numeral: Literal[
@@ -130,7 +133,7 @@ class TertianHarmonyQuality:
         interval_classes = asic([IP(x).to_interval_class(interval_number=3) for x in
                                  dict_to_check[(upper_case, form_symbol)]])
 
-        instance = cls(interval_classes=interval_classes)
+        instance = cls(quality_type=interval_classes)
         return instance
 
     @classmethod
@@ -140,7 +143,7 @@ class TertianHarmonyQuality:
         return instance
 
     def to_aspc(self, tonic: SpelledPitchClass) -> SpelledPitchClassArray:
-        accumulative_ic = list(itertools.accumulate(self.interval_classes))
+        accumulative_ic = list(itertools.accumulate(self.quality_type))
         sd_list = aspc([tonic] + [tonic + x for x in accumulative_ic])
         return sd_list
 

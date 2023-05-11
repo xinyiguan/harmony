@@ -18,7 +18,7 @@ def chord_chromaticism_vector():
 
 
     # 4. if neither --> tonicization
-
+    raise NotImplementedError
 
 def test():
     df: pd.DataFrame = pd.read_csv(
