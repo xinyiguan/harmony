@@ -46,6 +46,11 @@ double_mixture_dict = {"I": ["i"], "ii": ["bii", "iio"], "iii": ["biii"], "IV": 
                        "v": ["V"], "bVI": ["VI"], "bVII": ["vii", "VII"]}
 
 
+
+@dataclass
+class Triad: # Schenker Harmony section III, chap 1, p. 182
+    pass
+
 @dataclass
 class Stufe:
     stufen_str: str

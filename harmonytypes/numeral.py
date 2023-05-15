@@ -195,7 +195,7 @@ class Numeral(AbstractNumeral):
         return result
 
     def fifth(self) -> SpelledPitchClass:
-        ic_to_add = self.harmony_quality[0]+self.harmony_quality[1]
+        ic_to_add = self.harmony_quality[0] + self.harmony_quality[1]
         result = self.root + ic_to_add
         return result
 
@@ -217,10 +217,20 @@ class Numeral(AbstractNumeral):
         result = numeral_match["numeral"]
         return result
 
+    def triadic_form(self):
+        """preserving the stufen (scale step) and the quality of the harmony (upper/lower case)"""
+        raise NotImplementedError
+
+
     # ============================================================================
     # METHODS relevant to the Stufentheorie
 
-
+    # def chromatic_operation(self) -> Literal["diatonic", "simple_mixture", "secondary_mixture", "double_mixture", "tonicization"]:
+    #
+    #     # check if it's applied chord:
+    #     if "/" in self.chord_string:
+    #         chromatic_operation = "tonicization"
+    #     elif self.
 
 
 def test1():
@@ -270,5 +280,6 @@ def test4():
     print(f'{numeral.third()=}')
     print(f'{numeral.fifth()=}')
 
+
 if __name__ == '__main__':
-    test3()
+    test4()

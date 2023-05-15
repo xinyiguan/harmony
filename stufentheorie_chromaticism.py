@@ -11,7 +11,7 @@ def chord_chromaticism_vector():
     # 1. check chord type: whether or not numeral in the combined major-minor system or applied chord or neither
 
 
-    # 2. if applied chord
+    # 2. if applied chord -> tonicization
 
 
     # 3. if in the major-minor system -> check mixture type
