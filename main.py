@@ -1,9 +1,9 @@
 import os
 
 import numpy as np
+from ms3 import resolve_dir
 from pitchtypes import asic, SpelledPitchClass, aspc, SpelledIntervalClass
 
-from harmonytypes.chord import Triad
 from harmonytypes.degree import Degree
 from harmonytypes.key import Key
 from harmonytypes.numeral import Numeral
@@ -23,8 +23,8 @@ from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from palettable import cartocolors
 from typing import Callable, Optional, TypeVar, Dict, Any, Tuple, Literal, List
-from dcml_corpora.utils import STD_LAYOUT, CADENCE_COLORS, chronological_corpus_order, color_background, get_repo_name, \
-    resolve_dir, value_count_df, get_repo_name, resolve_dir
+# from dcml_corpora.utils import STD_LAYOUT, CADENCE_COLORS, chronological_corpus_order, color_background, get_repo_name, \
+#     resolve_dir, value_count_df, get_repo_name, resolve_dir
 from harmonytypes.LerdahlSpace import LerdahlDiatonicBasicSpace
 
 
@@ -54,7 +54,7 @@ def get_expanded_dfs(data_set: dimcat.Dataset) -> Dict[Any, pd.DataFrame]:
 
 
 def get_year_by_piecename(piece_name: str,
-                          meatadata_tsv_path: str = '/Users/xinyiguan/Codes/musana/dcml_corpora/concatenated_metadata.tsv') -> int:
+                          meatadata_tsv_path: str = '/Users/xinyiguan/Codes/musana/old_dcml_corpora/concatenated_metadata.tsv') -> int:
     concat_metadata_df = pd.read_csv(meatadata_tsv_path, sep='\t')
     year = concat_metadata_df[concat_metadata_df['fname'] == piece_name]['composed_end'].values[0]
     return year
@@ -62,6 +62,8 @@ def get_year_by_piecename(piece_name: str,
 
 def piece_wise_operation(piece_df: pd.DataFrame,
                          chord_wise_operation: Callable) -> pd.DataFrame:
+    # TODO: add the normalizing factor (normalize)
+
     row_func = lambda row: pd.Series(maybe_bind(Numeral.from_df, chord_wise_operation)(row),
                                      dtype='object')
 
@@ -87,6 +89,8 @@ def dataset_wise_operation(dataset: dimcat.Dataset,
 # Defining measures: ===============================================================
 
 def CI1_pc_content_indices_dict(chord: Numeral) -> Dict[str, int]:
+
+
     global_key = chord.global_key
     local_key = chord.local_key
     key_if_tonicized = chord.key_if_tonicized()
@@ -217,7 +221,8 @@ def CI2_piecewise_multilevel_chord_chromaticity_df(piece_df: pd.DataFrame) -> pd
 class DataframePrep:
     @staticmethod
     def CI1_pc_content_index_df() -> pd.DataFrame:
-        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
+        # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
+        CORPUS_PATH = os.environ.get('CORPUS_PATH',"/Users/xinyiguan/MusicData/old_dcml_corpora")
         CORPUS_PATH = resolve_dir(CORPUS_PATH)
 
         mydataset = dimcat.Dataset()
@@ -764,4 +769,10 @@ class GraphsPrep:
 
 if __name__ == '__main__':
     # GraphsPrep.CI1_scatter_pc_content_index()
-    DataframePrep.CI2_multilevel_chord_chromaticity_df()
+    # DataframePrep.CI2_multilevel_chord_chromaticity_df()
+
+    piece_df = pd.read_csv(
+        '/Users/xinyiguan/MusicData/old_dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
+        sep='\t')
+    result = piece_wise_operation(piece_df= piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
+    print(f'{result=}')

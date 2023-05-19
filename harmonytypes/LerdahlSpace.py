@@ -3,7 +3,7 @@ from typing import List, Self, Dict
 
 from pitchtypes import EnharmonicPitchClass, SpelledIntervalClassArray, SpelledPitchClass, aspc
 
-from harmonytypes.chord import Triad
+from harmonytypes.triad import Triad
 from harmonytypes.key import Key
 from harmonytypes.numeral import Numeral
 from harmonytypes.quality import TertianHarmonyQuality
