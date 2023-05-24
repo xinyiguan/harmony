@@ -53,7 +53,7 @@ def get_expanded_dfs(data_set: dimcat.Dataset) -> Dict[Any, pd.DataFrame]:
 
 
 def get_year_by_piecename(piece_name: str,
-                          meatadata_tsv_path: str = 'all_subcorpora/concatenated_metadata.tsv') -> int:
+                          meatadata_tsv_path: str ='/Users/xinyiguan/MusicData/dcml_corpora/concatenated_metadata.tsv') -> int:
     concat_metadata_df = pd.read_csv(meatadata_tsv_path, sep='\t')
     year = concat_metadata_df[concat_metadata_df['fname'] == piece_name]['composed_end'].values[0]
     return year
@@ -66,7 +66,12 @@ def piece_operation(piece_df: pd.DataFrame,
 
     mask = piece_df['chord'] != '@none'
     cleaned_piece_df = piece_df.dropna(subset=['chord']).reset_index(drop=True).loc[mask].reset_index(drop=True)
-    result: pd.DataFrame = cleaned_piece_df.apply(row_func, axis=1)
+
+    total_duration = piece_df["duration_qb"].sum()
+    df = cleaned_piece_df.assign(weighted_factor=lambda x: x['duration_qb']/total_duration)
+
+    result: pd.DataFrame = df.apply(row_func, axis=1)
+    result['weighted_factor']=df['weighted_factor']
     return result
 
 
@@ -106,6 +111,7 @@ def CI1_pc_content_indices_dict(chord: Numeral) -> Dict[str, int]:
 
     result_dict = {'chord': chord.chord_string,
                    'pcs': chord.spcs,
+
                    'global_key': global_key.to_string(),
                    'ndpc_GlobalTonic': ndpc_GK,
                    'M1': pcci_GK_d5th_on_C,
@@ -121,28 +127,36 @@ def CI1_pc_content_indices_dict(chord: Numeral) -> Dict[str, int]:
                    'M5': pcci_TT_d5th_on_C,
                    'M6': pcci_TT_d5th_on_rt}
 
+
+
     return result_dict
 
 
 def CI1_piecewise_pc_content_indices_df(piece_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Returns a dataframe with columns: chord, pcs, gt, ndpc_gt, m1_gt, m2_gt,
-    lt, ndpc_lt, m1_lt, m2_lt, tk, ndpc_tt, m1_tt, m2_tt for a piece.
+    Returns a dataframe with columns: chord, pcs, gt, ndpc_gt, M1, M2,
+    lt, ndpc_lt, M3, M4, tk, ndpc_tt, M5, M6 for a piece.
 
     m1 corresponds to the distant on the line of fifths centered on C
     m2 corresponds to the distant on the line of fifths centered on the root of the chord
     """
-    # TODO: add the normalizing factor (normalize)
 
-    total_duration = piece_df["duration_qb"].sum()
+    intermediate_df = piece_operation(piece_df=piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
+    result = intermediate_df.assign(weighted_M1=lambda x: x.M1 * x['weighted_factor'],
+                                    weighted_M2=lambda x: x.M2 * x['weighted_factor'],
 
-    result = piece_operation(piece_df=piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
+                                    weighted_M3=lambda x: x.M3 * x['weighted_factor'],
+                                    weighted_M4=lambda x: x.M4 * x['weighted_factor'],
+
+                                    weighted_M5=lambda x: x.M5 * x['weighted_factor'],
+                                    weighted_M6=lambda x: x.M6 * x['weighted_factor'],
+                                    )
     return result
 
 
 # ==================================================================================
 
-def CI2_multilevel_chord_chromaticity_dict(chord: Numeral) -> Dict[str, int]:
+def CI2_multilevel_chord_chromaticity_dict(chord: Numeral, chord_duration: float) -> Dict[str, int]:
     global_key = chord.global_key
     local_key = chord.local_key
 
@@ -153,6 +167,8 @@ def CI2_multilevel_chord_chromaticity_dict(chord: Numeral) -> Dict[str, int]:
 
     result_dict = {"chord": chord.chord_string,
                    "pcs": chord.spcs,
+                   "duration": chord_duration,
+
                    "nd_notes": chord.non_diatonic_spcs(reference_key=chord.key_if_tonicized()),
                    "within_chord": c_wc,
                    "(LK,root)": (local_key, chord.root),
@@ -194,20 +210,23 @@ class FLog:
 class DataframePrep:
     @staticmethod
     def CI1_pc_content_index_df() -> pd.DataFrame:
-        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/petit_corpora")
+        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/MusicData/dcml_corpora")
+        # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/petit_corpora")
         # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
         # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/all_subcorpora")
         CORPUS_PATH = resolve_dir(CORPUS_PATH)
 
         mydataset = dimcat.Dataset()
-        print("Start loading")
+        print("Start loading...")
         mydataset.load(directory=CORPUS_PATH)
         print("Finished loading")
 
-        logger = FLog()
         dataset_df = dataset_operation(dataset=mydataset,
-                                       piece_operation=logger.f(CI1_piecewise_pc_content_indices_df))
-        dataset_df.to_csv("temp_dataframes/CI1_corpus_pc_content_df", sep="\t")
+                                       piece_operation=CI1_piecewise_pc_content_indices_df)
+
+        path_to_save = "temp_dataframes/CI1_corpus_pc_content_df.tsv"
+        dataset_df.to_csv(path_to_save, sep="\t")
+        print(f'dataframe saved as tsv to {path_to_save} !')
         return dataset_df
 
     @staticmethod
@@ -215,7 +234,7 @@ class DataframePrep:
         """
         M_set_type is one of the column names of the CI1_corpus_pc_content_df, indicating the specific 1 of the 6 metrics.
         """
-        dataset_df = pd.read_csv("temp_dataframes/CI1_corpus_pc_content_df", sep='\t')
+        dataset_df = pd.read_csv("temp_dataframes/CI1_corpus_pc_content_df.tsv", sep='\t')
         plot_ready_df = dataset_df.groupby("piece").agg(corpus=("corpus", "first"), year=("year", "first"),
                                                         chord_num=("chord", "count"), max_val=(M_set_type, "max"),
                                                         min_val=(M_set_type, "min"),
@@ -236,7 +255,7 @@ class DataframePrep:
             corpus_id=lambda x: x['corpus'].map(corpus_dict),
             piece_id=lambda x: x['piece'].map(piece_dict))
 
-        path_to_plot = f"temp_dataframes/CI1_lollipop_pc_content_{M_set_type}_df"
+        path_to_plot = f"temp_dataframes/CI1_lollipop_pc_content_{M_set_type}_df.tsv"
         plot_ready_df.to_csv(path_to_plot, sep="\t")
 
         return path_to_plot, plot_ready_df
@@ -245,6 +264,45 @@ class DataframePrep:
     def CI1_lollipop_dfs():
         for x in ["M1", "M2", "M3", "M4", "M5", "M6"]:
             DataframePrep.CI1_lollipop_pc_content_df(M_set_type=x)
+
+    @staticmethod
+    def CI1_lollipop_pc_content_cloud_df(M_set_type: str) -> Tuple[str, pd.DataFrame]:
+        """
+        M_set_type is one of the column names of the CI1_corpus_pc_content_df, indicating the specific 1 of the 6 metrics.
+        """
+        dataset_df = pd.read_csv("temp_dataframes/CI1_corpus_pc_content_df.tsv", sep='\t')
+        plot_ready_df = dataset_df.groupby("piece").agg(corpus=("corpus", "first"), year=("year", "first"),
+                                                        chord_num=("chord", "count"), max_val=(M_set_type, "max"),
+                                                        min_val=(M_set_type, "min"),
+                                                        all_vals = (M_set_type, ),
+                                                        pieces_avg=(M_set_type, np.mean)).reset_index()
+
+        plot_ready_df = plot_ready_df.assign(
+            corpus_year=plot_ready_df.groupby("corpus")["year"].transform(np.mean),
+            # take the mean of the pieces year in a corpus
+            corpus_avg=plot_ready_df.groupby("corpus")["pieces_avg"].transform(np.mean)).sort_values(
+            ["corpus_year", "year"]).reset_index()
+
+        corpus_dict = {corpus: i + 1 for i, corpus in
+                       enumerate(plot_ready_df.sort_values(["corpus_year", "year"])['corpus'].unique())}
+        piece_dict = {piece: i + 1 for i, piece in
+                      enumerate(plot_ready_df.sort_values(["corpus_year", "year"])['piece'])}
+
+        plot_ready_df = plot_ready_df.assign(
+            corpus_id=lambda x: x['corpus'].map(corpus_dict),
+            piece_id=lambda x: x['piece'].map(piece_dict))
+
+        path_to_plot = f"temp_dataframes/CI1_lollipop_pc_content_cloud_{M_set_type}_df.tsv"
+        plot_ready_df.to_csv(path_to_plot, sep="\t")
+
+        return path_to_plot, plot_ready_df
+
+    @staticmethod
+    def CI1_lollipop_cloud_dfs():
+        for x in ["M1", "M2", "M3", "M4", "M5", "M6"]:
+            DataframePrep.CI1_lollipop_pc_content_cloud_df(M_set_type=x)
+
+
 
     @staticmethod
     def CI2_multilevel_chord_chromaticity_df() -> pd.DataFrame:
@@ -271,7 +329,7 @@ class DataframePrep:
 
         dataset_df = dataset_operation(dataset=mydataset,
                                        piece_operation=CI2_piecewise_multilevel_chord_chromaticity_df)
-        dataset_df.to_csv("temp_dataframes/out_of_scale_indices_df", sep="\t")
+        dataset_df.to_csv("temp_dataframes/out_of_scale_indices_df.tsv", sep="\t")
         return dataset_df
 
 
@@ -540,8 +598,8 @@ class GraphsPrep:
         )
 
     @staticmethod
-    def CI1_lollipop_pc_content_index(M_set_type: Literal["M1", "M2", "M3", "M4", "M5", "M6"]):
-        plot_ready_df = pd.read_csv(f"temp_dataframes/CI1_lollipop_pc_content_{M_set_type}_df", sep='\t')
+    def CI1_lollipop_pc_content_index_max_min(M_set_type: Literal["M1", "M2", "M3", "M4", "M5", "M6"]):
+        plot_ready_df = pd.read_csv(f"temp_dataframes/CI1_lollipop_pc_content_{M_set_type}_df.tsv", sep='\t')
 
         pretty_corpus_labels = {"corelli": "Corelli",
                                 "mozart_piano_sonatas": "Mozart Sonata",
@@ -744,9 +802,217 @@ class GraphsPrep:
         print(f"Plot saved to {path_to_save}!")
 
     @staticmethod
-    def CI1_lollipop_graphs():
+    def CI1_lollipop_pc_content_index_cloud_dist(M_set_type: Literal["M1", "M2", "M3", "M4", "M5", "M6"]):
+        plot_ready_df = pd.read_csv(f"temp_dataframes/CI1_lollipop_pc_content_{M_set_type}_df.tsv", sep='\t')
+
+        pretty_corpus_labels = {"corelli": "Corelli",
+                                "mozart_piano_sonatas": "Mozart Sonata",
+                                "beethoven_piano_sonatas": "Beethoven Sonata",
+                                "ABC": "ABC",
+                                "chopin_mazurkas": "Chopin",
+                                "schumann_kinderszenen": "Schumann",
+                                "liszt_pelerinage": "Liszt",
+                                "tchaikovsky_seasons": "Tchaikovsky",
+                                "dvorak_silhouettes": "Dvorak",
+                                "grieg_lyric_pieces": "Grieg",
+                                "debussy_suite_bergamasque": "Debussy",
+                                "medtner_tales": "Medtner"
+                                }
+
+        # the horizontal lines for corpus mean: ________________________________________________________________________
+        df_lines = plot_ready_df.groupby("corpus").agg(start_x=("piece_id", min),
+                                                       end_x=("piece_id", max),
+                                                       year=("corpus_year", "first"),
+                                                       corpus_id=("corpus_id", "first"),
+                                                       y=("corpus_avg", "first")).sort_values(["year"]).reset_index()
+
+        # add some padding (epsilon) around the corpus line group
+        df_lines["start_x_eps"] = df_lines["start_x"] - 0.1
+        df_lines["end_x_eps"] = df_lines["end_x"] + 0.1
+
+        # the coloring: _______________________________________________________________________________________________
+        # Misc colors
+        GREY82 = "#d1d1d1"
+        GREY70 = "#B3B3B3"
+        GREY40 = "#666666"
+        GREY30 = "#4d4d4d"
+        BG_WHITE = "#fafaf5"
+
+        # These colors (and their dark and light variant) are assigned to each of the 12 corpora
+        COLORS = ["#486090", "#D7BFA6", "#04686B", "#d1495b", "#9CCCCC", "#7890A8",
+                  "#C7B0C1", "#FFB703", "#B5C9C9", "#90A8C0", "#A8A890", "#ea7317"]
+
+        # Coloring the pieces in each corpus, each corpus corresponds to one color
+        corpus_color_dict = {corpus: color for corpus, color in zip(plot_ready_df['corpus'].unique(), COLORS)}
+
+        # helper function for generating a list of integers from a center number with space interval
+        def generate_n_integers_list_from_center(n: int, center_number: int, interval: int) -> List[int]:
+            return [center_number - interval * (n // 2) + interval * i for i in range(n)]
+
+        # Horizontal lines
+        # HLINES = [-40, -20, 0, 20, 40, 60, 80]
+        HLINES = generate_n_integers_list_from_center(n=7, center_number=0, interval=20)
+
+        # lollipop dot size: __________________________________________________________________________________________
+        CHORDS_MAX = plot_ready_df["chord_num"].max()
+        CHORDS_MIN = plot_ready_df["chord_num"].min()
+
+        # low and high refer to the final dot size.
+        def scale_to_interval(x, low=5, high=30):
+            return ((x - CHORDS_MIN) / (CHORDS_MAX - CHORDS_MIN)) * (high - low) + low
+
+        # Add annotation of the data: def of metrics as the title
+        set_M_annotation_dict = {"M1": r'$M_1 = \{d_{5th} (rt=C, a=nd(k=GlobalKey, A))}$',
+                                 "M2": r'$M_2 = \{d_{5th} (rt=root, a=nd(k=GlobalKey, A))}$',
+                                 "M3": r'$M_3 = \{d_{5th} (rt=C, a=nd(k=LocalKey, A))}$',
+                                 "M4": r'$M_4 = \{d_{5th} (rt=root, a=nd(k=LocalKey, A))}$',
+                                 "M5": r'$M_5 = \{d_{5th} (rt=C, a=nd(k=Tonicization(r, A), A))}$',
+                                 "M6": r'$M_6 = \{d_{5th} (rt=root, a=nd(k=Tonicization(r,A), A))}$',
+                                 }
+
+        # Customize layout -----------------------------------------------
+        layout = go.Layout(title=set_M_annotation_dict[M_set_type],
+                           showlegend=False)
+
+        # Fig starts : __________________________________________________________________________________________
+        fig = go.Figure(layout=layout)
+
+        # Some layout stuff ----------------------------------------------
+        # Background color
+
+        fig.update_layout(
+            paper_bgcolor=BG_WHITE,
+            plot_bgcolor=BG_WHITE)
+
+        # Add horizontal lines that are used as scale reference
+        # layer="below" to keep them in the background
+
+        for h in HLINES:
+            fig.add_hline(y=h, layer="below", line_width=1, line_color=GREY40)
+
+        # Add vertical segments ------------------------------------------
+        # Vertical segments.
+        # These represent the deviation of piece's ci value from the mean ci value of the corpus they belong.
+
+        for piece in plot_ready_df["piece"]:
+            p = plot_ready_df[plot_ready_df["piece"] == piece]
+            fig.add_shape(
+                type="line",
+                x0=p["piece_id"].values[0],
+                x1=p["piece_id"].values[0],
+                y0=p["min_val"].values[0],
+                y1=p["max_val"].values[0],
+                line=dict(color=corpus_color_dict[p["corpus"].values[0]], width=1)
+            )
+
+        # Add horizontal segments ----------------------------------------
+        # These represent the mean corpus stats.
+
+        # loop through each unique corpus in the data and plot a horizontal line
+        for corpus in df_lines["corpus"].unique():
+            d = df_lines[df_lines["corpus"] == corpus]
+            # shape method does not get the hover text (TODO: Change later?)
+            fig.add_shape(type="line",
+                          x0=d["start_x_eps"].values[0],
+                          y0=d["y"].values[0],
+                          x1=d["end_x_eps"].values[0],
+                          y1=d["y"].values[0],
+                          line=dict(color=corpus_color_dict[d["corpus"].values[0]], width=3))
+
+        # Add dots -------------------------------------------------------
+        # The dots indicate each piece's value, with its size given by the number of chords in the piece.
+
+        # hacking the color for each corpus: add a color column to the df
+        plot_ready_df['colors'] = plot_ready_df['corpus'].apply(lambda x: corpus_color_dict[x])
+
+        fig.add_scatter(x=plot_ready_df["piece_id"],
+                        y=plot_ready_df["min_val"],
+                        mode="markers",
+                        marker=dict(size=scale_to_interval(plot_ready_df["chord_num"]),
+                                    color=plot_ready_df.colors),
+                        customdata=np.stack((plot_ready_df['piece'], plot_ready_df['year'], plot_ready_df['chord_num'],
+                                             plot_ready_df['min_val']), axis=-1),
+                        hovertemplate='<b>Piece</b>: %{customdata[0]}<br>' +
+                                      '<b>Year</b>: %{customdata[1]}<br>' +
+                                      '<b>Chord num</b>: %{customdata[2]}<br>' +
+                                      '<b>Value</b>: %{customdata[3]}' +
+                                      '<extra></extra>')
+
+        fig.add_scatter(x=plot_ready_df["piece_id"],
+                        y=plot_ready_df["max_val"],
+                        mode="markers",
+                        marker=dict(size=scale_to_interval(plot_ready_df["chord_num"]),
+                                    color=plot_ready_df.colors),
+                        customdata=np.stack((plot_ready_df['piece'], plot_ready_df['year'], plot_ready_df['chord_num'],
+                                             plot_ready_df['max_val']), axis=-1),
+                        hovertemplate='<b>Piece</b>: %{customdata[0]}<br>' +
+                                      '<b>Year</b>: %{customdata[1]}<br>' +
+                                      '<b>Chord num</b>: %{customdata[2]}<br>' +
+                                      '<b>Value</b>: %{customdata[3]}' +
+                                      '<extra></extra>')
+
+        # Add labels -----------------------------------------------------
+        # They indicate the corpus and free us from using a legend.
+
+        df_lines["corpus_label_x"] = df_lines.apply(lambda row: (row["start_x"] + row["end_x"]) / 2, axis=1)
+        # to avoid overlapping of labels, create alternating heights
+        df_lines["corpus_label_y"] = [max(plot_ready_df["max_val"]) + 30 + x for x in
+                                      [0 if i % 3 == 0 else 7 if i % 3 == 1 else -7 for i in range(df_lines.shape[0])]]
+
+        corpus_label_pos_tuple_list = [(corpus, x_pos, y_pos) for corpus, x_pos, y_pos in
+                                       zip(df_lines["corpus"], df_lines["corpus_label_x"], df_lines["corpus_label_y"])]
+
+        for corpus, x_pos, y_pos in corpus_label_pos_tuple_list:
+            color = corpus_color_dict[corpus]
+            fig.add_annotation(
+                x=x_pos, y=y_pos, text=f"{pretty_corpus_labels[corpus]}",
+                showarrow=False,
+                font=dict(
+                    # size=16,
+                    color=color
+                ),
+                align="center",
+                bordercolor=color,
+                borderwidth=1
+            )
+
+        # Add custom legend for bubble size ----------------------------------------------
+        # Horizontal position for the dots and their labels
+        x_dot_pos = generate_n_integers_list_from_center(n=4, center_number=plot_ready_df["piece_id"].mean(),
+                                                         interval=7)
+        chord_num = np.array([150, 300, 450, 600])
+
+        fig.add_scatter(x=x_dot_pos,
+                        y=[min(plot_ready_df["min_val"]) - 30] * len(x_dot_pos),
+                        mode="markers+text",
+                        marker=dict(size=scale_to_interval(chord_num), color="black"),
+                        text=["150", "300", "450", "600"],
+                        textposition="bottom center",
+                        )
+
+        # Add title to our custom legend
+        fig.add_annotation(x=np.mean(x_dot_pos),
+                           y=min(plot_ready_df["min_val"]) - 20,
+                           text="Number of chords per piece",
+                           showarrow=False)
+
+        # update layout
+        fig.update_layout(showlegend=False,
+                          xaxis_title="Pieces (* almost in chronological order)",
+                          yaxis_title="Values")
+
+        path_to_save = f"figures/CI1_lollipop_cloud_distr_{M_set_type}.html"
+        fig.write_html(f"{path_to_save}", include_plotlyjs='cdn', full_html=True)
+        print(f"Plot saved to {path_to_save}!")
+    @staticmethod
+    def CI1_lollipop_max_min_graphs():
         for x in ["M1", "M2", "M3", "M4", "M5", "M6"]:
-            GraphsPrep.CI1_lollipop_pc_content_index(M_set_type=x)
+            GraphsPrep.CI1_lollipop_pc_content_index_max_min(M_set_type=x)
+
+    @staticmethod
+    def CI1_lollipop_cloud_dist_graphs():
+        for x in ["M1", "M2", "M3", "M4", "M5", "M6"]:
+            GraphsPrep.CI1_lollipop_pc_content_index_cloud_dist(M_set_type=x)
 
 
 if __name__ == '__main__':
@@ -759,4 +1025,4 @@ if __name__ == '__main__':
     # result = piece_operation(piece_df= piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
     # print(f'{result=}')
 
-    DataframePrep.CI1_pc_content_index_df()
+    GraphsPrep.CI1_lollipop_graphs()
