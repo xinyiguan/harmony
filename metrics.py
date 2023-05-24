@@ -2,12 +2,13 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-from pitchtypes import SpelledPitchClass, SpelledPitchClassArray, asic, aspc, SpelledIntervalClass
+from pitchtypes import SpelledPitchClass, SpelledPitchClassArray, asic, aspc, SpelledIntervalClass, EnharmonicPitchClass
 
 from harmonytypes.degree import Degree
 from harmonytypes.key import Key
 from harmonytypes.numeral import Numeral
 from harmonytypes.quality import TertianHarmonyQuality
+from harmonytypes.scale import DiatonicScale, OctatonicScale, HexatonicScale
 
 #   1. pitch class content index (out-of-context index, root as tonic)
 ##  1.1 sum (on line of fifths values) of all non-diatonic notes.
@@ -30,22 +31,6 @@ def d5th(reference_tone: SpelledPitchClass, other: SpelledPitchClass) -> int:
     interval: SpelledIntervalClass = reference_tone.interval_to(other=other)
     result = interval.fifths()
     return result
-
-
-def chromatic_third_measure(numeral: Numeral) -> int:
-    if numeral.chromatic_type() == "diatonic":
-        return 0
-    elif numeral.chromatic_type() == "mixture":
-        return 1
-    elif numeral.chromatic_type() == "tonicization":
-        return 2
-    else:
-        raise ValueError
-
-
-def chromatic_penalty(chord: Numeral) -> int:
-    scale = chord.local_key.get_scale()
-    pass
 
 
 class MultilevelChordChromaticity:
@@ -93,6 +78,35 @@ class ChromaticIndex_Def2_Yannis:
         raise NotImplementedError
 
 
+# =====================================================================================================================
+
+def out_of_scale_index(numeral: Numeral, scale: DiatonicScale | OctatonicScale | HexatonicScale) -> int:
+    # diatonic does not assume enharmonic equivalence
+    if isinstance(scale, DiatonicScale):
+        out_of_scale_pitches = [x for x in numeral.spcs if not scale.check_membership(x)]
+        penalty = sum([abs(d5th(reference_tone=scale.tonic, other=x)) for x in out_of_scale_pitches])
+
+    # octatonic and hexatonic assume enharmonic equivalence
+    elif isinstance(scale, OctatonicScale):
+        numeral_epcs = [EnharmonicPitchClass(str(x)) for x in numeral.spcs]
+        out_of_scale_pitches = [x for x in numeral_epcs if not scale.check_membership(x)]
+
+        penalty = ...
+
+    elif isinstance(scale, HexatonicScale):
+        numeral_epcs = [EnharmonicPitchClass(str(x)) for x in numeral.spcs]
+        out_of_scale_pitches = [x for x in numeral_epcs if not scale.check_membership(x)]
+
+        penalty = ...
+
+
+    else:
+        raise NotImplementedError
+    print(f'{scale.members=}')
+    print(f'{penalty=}')
+    return penalty
+
+
 def test():
     df: pd.DataFrame = pd.read_csv(
         '/Users/xinyiguan/MusicData/dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
@@ -101,7 +115,9 @@ def test():
     df_row = df.iloc[1]
     numeral = Numeral.from_df(df_row)
     print(f'{numeral=}')
-    print(f'non-diatonic-notes: {numeral.non_diatonic_spcs(reference_key=numeral.key_if_tonicized())}')
+    result = out_of_scale_index(numeral=numeral,
+                                scale=DiatonicScale.from_tonic(tonic=SpelledPitchClass("D"), mode="major"))
+    return result
 
 
 def test1():
@@ -118,4 +134,4 @@ def test1():
 
 
 if __name__ == '__main__':
-    test1()
+    test()

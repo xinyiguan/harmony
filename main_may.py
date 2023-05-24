@@ -17,18 +17,13 @@ import plotly.graph_objs as go
 import matplotlib.colors as mc
 import matplotlib.pyplot as plt
 
-from matplotlib.cm import ScalarMappable
-from matplotlib.lines import Line2D
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-from palettable import cartocolors
 from typing import Callable, Optional, TypeVar, Dict, Any, Tuple, Literal, List
 # from dcml_corpora.utils import STD_LAYOUT, CADENCE_COLORS, chronological_corpus_order, color_background, get_repo_name, \
 #     resolve_dir, value_count_df, get_repo_name, resolve_dir
 from harmonytypes.LerdahlSpace import LerdahlDiatonicBasicSpace
 
 
-# helper functions: Data preprocessing ==============================================================================
+# helper functions: Data preprocessing ==========================================
 
 def check_eligible_piece(piece_df: pd.DataFrame) -> bool:
     """
@@ -47,6 +42,7 @@ def get_expanded_dfs(data_set: dimcat.Dataset) -> Dict[Any, pd.DataFrame]:
     expanded_df_from_piece = lambda p: p.get_facet('expanded')[1]
 
     # check for eligible pieces
+
     dict_dfs = {k: expanded_df_from_piece(v) for k, v in data_set.pieces.items() if
                 expanded_df_from_piece(v) is not None}
     return dict_dfs
@@ -59,8 +55,10 @@ def get_year_by_piecename(piece_name: str,
     return year
 
 
-def piece_operation(piece_df: pd.DataFrame,
-                    chord_wise_operation: Callable) -> pd.DataFrame:
+def piece_wise_operation(piece_df: pd.DataFrame,
+                         chord_wise_operation: Callable) -> pd.DataFrame:
+    # TODO: add the normalizing factor (normalize)
+
     row_func = lambda row: pd.Series(maybe_bind(Numeral.from_df, chord_wise_operation)(row),
                                      dtype='object')
 
@@ -70,20 +68,20 @@ def piece_operation(piece_df: pd.DataFrame,
     return result
 
 
-def dataset_operation(dataset: dimcat.Dataset,
-                      piece_operation: Callable) -> pd.DataFrame:
+def dataset_wise_operation(dataset: dimcat.Dataset,
+                           piecewise_operation: Callable) -> pd.DataFrame:
     expanded_df_dict = get_expanded_dfs(dataset)
-    all_pieces_dict = {key: piece_operation(value) for key, value in expanded_df_dict.items() if
-                       check_eligible_piece(value)}
+    pieces_dict = {key: piecewise_operation(value) for key, value in expanded_df_dict.items() if
+                   check_eligible_piece(value)}
 
-    all_pieces_df: pd.DataFrame = pd.concat([v.assign(corpus=k[0], piece=k[1]) for k, v in all_pieces_dict.items()])
+    pieces_df: pd.DataFrame = pd.concat([v.assign(corpus=k[0], piece=k[1]) for k, v in pieces_dict.items()])
 
-    all_pieces_df['year'] = [get_year_by_piecename(name) for name in all_pieces_df["piece"]]
+    pieces_df['year'] = [get_year_by_piecename(name) for name in pieces_df["piece"]]
     # pieces_df.index.set_names(['corpus', 'piece'], inplace=True)  # set names for MultiIndex
-    return all_pieces_df
+    return pieces_df
 
 
-# Defining chord operation (chord-wise operation): ===================================================================
+# Defining measures: ===============================================================
 
 def CI1_pc_content_indices_dict(chord: Numeral) -> Dict[str, int]:
     global_key = chord.global_key
@@ -132,15 +130,12 @@ def CI1_piecewise_pc_content_indices_df(piece_df: pd.DataFrame) -> pd.DataFrame:
     m1 corresponds to the distant on the line of fifths centered on C
     m2 corresponds to the distant on the line of fifths centered on the root of the chord
     """
-    # TODO: add the normalizing factor (normalize)
 
-    total_duration = piece_df["duration_qb"].sum()
-
-    result = piece_operation(piece_df=piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
+    result = piece_wise_operation(piece_df=piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
     return result
 
 
-# ==================================================================================
+# ===============================================================
 
 def CI2_multilevel_chord_chromaticity_dict(chord: Numeral) -> Dict[str, int]:
     global_key = chord.global_key
@@ -164,49 +159,22 @@ def CI2_multilevel_chord_chromaticity_dict(chord: Numeral) -> Dict[str, int]:
 
 
 def CI2_piecewise_multilevel_chord_chromaticity_df(piece_df: pd.DataFrame) -> pd.DataFrame:
-    result = piece_operation(piece_df=piece_df, chord_wise_operation=CI2_multilevel_chord_chromaticity_dict)
+    result = piece_wise_operation(piece_df=piece_df, chord_wise_operation=CI2_multilevel_chord_chromaticity_dict)
     return result
 
 
-# Defining Out of scale index df ==================================================================================
-
-def out_of_scale_indicies_dict(chord: Numeral) -> Dict[str, int]:
-
-    raise NotImplementedError
-
-
-def out_of_scale_indicies_df(piece_df: pd.DataFrame) -> pd.DataFrame:
-    result = piece_operation(piece_df=piece_df, chord_wise_operation=out_of_scale_indicies_dict)
-    return result
-
-
-class FLog:
-    def __init__(self):
-        self.call_count = 0
-
-    def f(self, fun):
-        self.call_count += 1
-        print(f'processed_piece: {self.call_count}')
-        return fun
-
-
-# Main Classes ========================================================================================================
+# ===============================================================
 class DataframePrep:
     @staticmethod
     def CI1_pc_content_index_df() -> pd.DataFrame:
-        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/petit_corpora")
-        # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
-        # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/all_subcorpora")
+        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/all_subcorpora")
         CORPUS_PATH = resolve_dir(CORPUS_PATH)
 
         mydataset = dimcat.Dataset()
-        print("Start loading")
         mydataset.load(directory=CORPUS_PATH)
-        print("Finished loading")
 
-        logger = FLog()
-        dataset_df = dataset_operation(dataset=mydataset,
-                                       piece_operation=logger.f(CI1_piecewise_pc_content_indices_df))
+        dataset_df = dataset_wise_operation(dataset=mydataset,
+                                            piecewise_operation=CI1_piecewise_pc_content_indices_df)
         dataset_df.to_csv("temp_dataframes/CI1_corpus_pc_content_df", sep="\t")
         return dataset_df
 
@@ -254,25 +222,11 @@ class DataframePrep:
         mydataset = dimcat.Dataset()
         mydataset.load(directory=CORPUS_PATH)
 
-        dataset_df = dataset_operation(dataset=mydataset,
-                                       piece_operation=CI2_piecewise_multilevel_chord_chromaticity_df)
+        dataset_df = dataset_wise_operation(dataset=mydataset,
+                                            piecewise_operation=CI2_piecewise_multilevel_chord_chromaticity_df)
         dataset_df.to_csv("temp_dataframes/CI2_multilevel_chord_chromaticity_df", sep="\t")
         return dataset_df
 
-    @staticmethod
-    def out_of_scale_indices_df() -> pd.DataFrame:
-        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
-        CORPUS_PATH = resolve_dir(CORPUS_PATH)
-
-        mydataset = dimcat.Dataset()
-        print(f'Start loading dataset...')
-        mydataset.load(directory=CORPUS_PATH)
-        print(f'Finished loading!')
-
-        dataset_df = dataset_operation(dataset=mydataset,
-                                       piece_operation=CI2_piecewise_multilevel_chord_chromaticity_df)
-        dataset_df.to_csv("temp_dataframes/out_of_scale_indices_df", sep="\t")
-        return dataset_df
 
 
 class GraphsPrep:
@@ -352,7 +306,9 @@ class GraphsPrep:
             fig.update_layout(showlegend=True,
                               xaxis_title="Time (year)",
                               yaxis_title="Pitch class content index")
-            fig.write_html(f"figures/CI1_scatter_{val}.html")
+            path_to_save = "figures/CI1_scatter_{val}.html"
+            fig.write_html(f"{path_to_save}")
+            print(f"Plot saved to {path_to_save}!")
 
     @staticmethod
     def CI1_lollipop_pc_content_index_static():
@@ -740,6 +696,7 @@ class GraphsPrep:
                           yaxis_title="Values")
 
         path_to_save = f"figures/CI1_lollipop_{M_set_type}.html"
+
         fig.write_html(f"{path_to_save}", include_plotlyjs='cdn', full_html=True)
         print(f"Plot saved to {path_to_save}!")
 
@@ -752,11 +709,11 @@ class GraphsPrep:
 if __name__ == '__main__':
     # GraphsPrep.CI1_scatter_pc_content_index()
     # DataframePrep.CI2_multilevel_chord_chromaticity_df()
-    #
+
     # piece_df = pd.read_csv(
     #     '/Users/xinyiguan/MusicData/old_dcml_corpora/debussy_suite_bergamasque/harmonies/l075-01_suite_prelude.tsv',
     #     sep='\t')
     # result = piece_operation(piece_df= piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
     # print(f'{result=}')
 
-    DataframePrep.CI1_pc_content_index_df()
+    GraphsPrep.CI1_lollipop_pc_content_index(M_set_type="M4")
