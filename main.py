@@ -4,6 +4,7 @@ import numpy as np
 from ms3 import resolve_dir
 from pitchtypes import asic, SpelledPitchClass, aspc, SpelledIntervalClass
 
+import color_palettes
 from harmonytypes.degree import Degree
 from harmonytypes.key import Key
 from harmonytypes.numeral import Numeral
@@ -35,7 +36,7 @@ def check_eligible_piece(piece_df: pd.DataFrame) -> bool:
     Check if the specified columns in a pandas DataFrame contain missing values.
     Returns True if all columns have all values, False otherwise.
     """
-    columns = ["chord", "chord_tones", "root", "bass_note"]
+    columns = ["chord", "chord_tones", "root", "bass_note", "globalkey", "localkey"]
     missing_values = piece_df[columns].isnull().any()
     if missing_values.any():
         return False
@@ -53,7 +54,7 @@ def get_expanded_dfs(data_set: dimcat.Dataset) -> Dict[Any, pd.DataFrame]:
 
 
 def get_year_by_piecename(piece_name: str,
-                          meatadata_tsv_path: str ='/Users/xinyiguan/MusicData/dcml_corpora/concatenated_metadata.tsv') -> int:
+                          meatadata_tsv_path: str = '/Users/xinyiguan/MusicData/all_subcorpora/concatenated_metadata.tsv') -> int:
     concat_metadata_df = pd.read_csv(meatadata_tsv_path, sep='\t')
     year = concat_metadata_df[concat_metadata_df['fname'] == piece_name]['composed_end'].values[0]
     return year
@@ -61,18 +62,22 @@ def get_year_by_piecename(piece_name: str,
 
 def piece_operation(piece_df: pd.DataFrame,
                     chord_wise_operation: Callable) -> pd.DataFrame:
+
     row_func = lambda row: pd.Series(maybe_bind(Numeral.from_df, chord_wise_operation)(row),
                                      dtype='object')
 
+
     mask = piece_df['chord'] != '@none'
+
     cleaned_piece_df = piece_df.dropna(subset=['chord']).reset_index(drop=True).loc[mask].reset_index(drop=True)
 
     total_duration = piece_df["duration_qb"].sum()
-    df = cleaned_piece_df.assign(weighted_factor=lambda x: x['duration_qb']/total_duration)
+    df = cleaned_piece_df.assign(weighted_factor=lambda x: x['duration_qb'] / total_duration)
 
     result: pd.DataFrame = df.apply(row_func, axis=1)
-    result['weighted_factor']=df['weighted_factor']
+    result['weighted_factor'] = df['weighted_factor']
     return result
+
 
 
 def dataset_operation(dataset: dimcat.Dataset,
@@ -141,17 +146,20 @@ def CI1_piecewise_pc_content_indices_df(piece_df: pd.DataFrame) -> pd.DataFrame:
     m2 corresponds to the distant on the line of fifths centered on the root of the chord
     """
 
+    print(f'Starting piece operation ...')
+
     intermediate_df = piece_operation(piece_df=piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
-    result = intermediate_df.assign(weighted_M1=lambda x: x.M1 * x['weighted_factor'],
-                                    weighted_M2=lambda x: x.M2 * x['weighted_factor'],
+    result = intermediate_df.assign(weighted_M1=lambda x: x['M1'] * x['weighted_factor'],
+                                    weighted_M2=lambda x: x['M2'] * x['weighted_factor'],
 
-                                    weighted_M3=lambda x: x.M3 * x['weighted_factor'],
-                                    weighted_M4=lambda x: x.M4 * x['weighted_factor'],
+                                    weighted_M3=lambda x: x['M3'] * x['weighted_factor'],
+                                    weighted_M4=lambda x: x['M4'] * x['weighted_factor'],
 
-                                    weighted_M5=lambda x: x.M5 * x['weighted_factor'],
-                                    weighted_M6=lambda x: x.M6 * x['weighted_factor'],
+                                    weighted_M5=lambda x: x['M5'] * x['weighted_factor'],
+                                    weighted_M6=lambda x: x['M6'] * x['weighted_factor'],
                                     )
     return result
+
 
 
 # ==================================================================================
@@ -187,7 +195,6 @@ def CI2_piecewise_multilevel_chord_chromaticity_df(piece_df: pd.DataFrame) -> pd
 # Defining Out of scale index df ==================================================================================
 
 def out_of_scale_indicies_dict(chord: Numeral) -> Dict[str, int]:
-
     raise NotImplementedError
 
 
@@ -206,12 +213,13 @@ class FLog:
         return fun
 
 
-# Main Classes ========================================================================================================
+# Main Classes =======================================================================================================
+
 class DataframePrep:
     @staticmethod
     def CI1_pc_content_index_df() -> pd.DataFrame:
-        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/MusicData/dcml_corpora")
-        # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/petit_corpora")
+        CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/MusicData/all_subcorpora")
+        # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/MusicData/petit_corpora")
         # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/dcml_corpora")
         # CORPUS_PATH = os.environ.get('CORPUS_PATH', "/Users/xinyiguan/Codes/musana/all_subcorpora")
         CORPUS_PATH = resolve_dir(CORPUS_PATH)
@@ -274,7 +282,7 @@ class DataframePrep:
         plot_ready_df = dataset_df.groupby("piece").agg(corpus=("corpus", "first"), year=("year", "first"),
                                                         chord_num=("chord", "count"), max_val=(M_set_type, "max"),
                                                         min_val=(M_set_type, "min"),
-                                                        all_vals = (M_set_type, ),
+                                                        all_vals=(M_set_type,),
                                                         pieces_avg=(M_set_type, np.mean)).reset_index()
 
         plot_ready_df = plot_ready_df.assign(
@@ -301,8 +309,6 @@ class DataframePrep:
     def CI1_lollipop_cloud_dfs():
         for x in ["M1", "M2", "M3", "M4", "M5", "M6"]:
             DataframePrep.CI1_lollipop_pc_content_cloud_df(M_set_type=x)
-
-
 
     @staticmethod
     def CI2_multilevel_chord_chromaticity_df() -> pd.DataFrame:
@@ -605,14 +611,43 @@ class GraphsPrep:
                                 "mozart_piano_sonatas": "Mozart Sonata",
                                 "beethoven_piano_sonatas": "Beethoven Sonata",
                                 "ABC": "ABC",
-                                "chopin_mazurkas": "Chopin",
-                                "schumann_kinderszenen": "Schumann",
+                                "chopin_mazurkas": "Chopin mazurkas",
+                                "schumann_kinderszenen": "Schumann Kinderszenen",
+                                "schumann_liederkreis": "Schumann Liederkreis",
                                 "liszt_pelerinage": "Liszt",
                                 "tchaikovsky_seasons": "Tchaikovsky",
                                 "dvorak_silhouettes": "Dvorak",
                                 "grieg_lyric_pieces": "Grieg",
                                 "debussy_suite_bergamasque": "Debussy",
-                                "medtner_tales": "Medtner"
+                                "medtner_tales": "Medtner",
+                                "bach_en_fr_suites": "Bach Suite",
+                                "bach_solo": "Bach solo",
+                                "bartok_bagatelles": "Bartok",
+                                "boccherini_ensemble": "Boccherini",
+                                "c_schumann_lieder": "Clara Schumann",
+                                "couperin_clavecin": "Couperin Clavecin",
+                                "couperin_concerts": "Couperin Concerts",
+                                "frescobaldi_fiori_musicali": "Frescobaldi",
+                                "gastoldi_baletti": "Gastoldi",
+                                "handel_keyboard": "Handel keybord",
+                                "jc_bach_sonatas": "JC Bach",
+                                "kleine_geistliche_konzerte": "Kleine Geistliche Konzerte",
+                                "kozeluh_sonatas": "Kozeluh Sonata",
+                                "mahler_kindertotenlieder": "Mahler",
+                                "mendelssohn_quartets": "Mendelssohn",
+                                "monteverdi_madrigals": "Monteverdi Madrigals",
+                                "pergolesi_stabat_mater": "Pergolesi",
+                                "pleyel_quartets": "Pleyel Quartets",
+                                "rachmaninoff_piano": "Rachmaninoff",
+                                "ravel_piano": "Ravel",
+                                "scarlatti_sonatas": "Scarlatti Sonatas",
+                                "schubert_dances": "Schubert Dances",
+                                "schubert_winterreise": "Schubert Winterreise",
+                                "schulhoff_suite_dansante_en_jazz": "Schulhoff Suite",
+                                "sweelinck_keyboard": "Sweelinck Keyboard",
+                                "wagner_overtures": "Wagner Overtures",
+                                "wf_bach_sonatas": "WF Bach sonata"
+
                                 }
 
         # the horizontal lines for corpus mean: ________________________________________________________________________
@@ -635,8 +670,9 @@ class GraphsPrep:
         BG_WHITE = "#fafaf5"
 
         # These colors (and their dark and light variant) are assigned to each of the 12 corpora
-        COLORS = ["#486090", "#D7BFA6", "#04686B", "#d1495b", "#9CCCCC", "#7890A8",
-                  "#C7B0C1", "#FFB703", "#B5C9C9", "#90A8C0", "#A8A890", "#ea7317"]
+        # COLORS = ["#486090", "#D7BFA6", "#04686B", "#d1495b", "#9CCCCC", "#7890A8",
+        #           "#C7B0C1", "#FFB703", "#B5C9C9", "#90A8C0", "#A8A890", "#ea7317"]
+        COLORS = color_palettes.xinyi_palette
 
         # Coloring the pieces in each corpus, each corpus corresponds to one color
         corpus_color_dict = {corpus: color for corpus, color in zip(plot_ready_df['corpus'].unique(), COLORS)}
@@ -761,7 +797,9 @@ class GraphsPrep:
         for corpus, x_pos, y_pos in corpus_label_pos_tuple_list:
             color = corpus_color_dict[corpus]
             fig.add_annotation(
-                x=x_pos, y=y_pos, text=f"{pretty_corpus_labels[corpus]}",
+                x=x_pos, y=y_pos, text=f"{corpus}",
+
+                # x=x_pos, y=y_pos, text=f"{pretty_corpus_labels[corpus]}",
                 showarrow=False,
                 font=dict(
                     # size=16,
@@ -802,21 +840,50 @@ class GraphsPrep:
         print(f"Plot saved to {path_to_save}!")
 
     @staticmethod
-    def CI1_lollipop_pc_content_index_cloud_dist(M_set_type: Literal["M1", "M2", "M3", "M4", "M5", "M6"]):
+    def CI1_lollipop_pc_content_index_3D(M_set_type: Literal["M1", "M2", "M3", "M4", "M5", "M6"]):
         plot_ready_df = pd.read_csv(f"temp_dataframes/CI1_lollipop_pc_content_{M_set_type}_df.tsv", sep='\t')
 
         pretty_corpus_labels = {"corelli": "Corelli",
                                 "mozart_piano_sonatas": "Mozart Sonata",
                                 "beethoven_piano_sonatas": "Beethoven Sonata",
                                 "ABC": "ABC",
-                                "chopin_mazurkas": "Chopin",
-                                "schumann_kinderszenen": "Schumann",
+                                "chopin_mazurkas": "Chopin mazurkas",
+                                "schumann_kinderszenen": "Schumann Kinderszenen",
+                                "schumann_liederkreis": "Schumann Liederkreis",
                                 "liszt_pelerinage": "Liszt",
                                 "tchaikovsky_seasons": "Tchaikovsky",
                                 "dvorak_silhouettes": "Dvorak",
                                 "grieg_lyric_pieces": "Grieg",
                                 "debussy_suite_bergamasque": "Debussy",
-                                "medtner_tales": "Medtner"
+                                "medtner_tales": "Medtner",
+                                "bach_en_fr_suites": "Bach Suite",
+                                "bach_solo": "Bach solo",
+                                "bartok_bagatelles": "Bartok",
+                                "boccherini_ensemble": "Boccherini",
+                                "c_schumann_lieder": "Clara Schumann",
+                                "couperin_clavecin": "Couperin Clavecin",
+                                "couperin_concerts": "Couperin Concerts",
+                                "frescobaldi_fiori_musicali": "Frescobaldi",
+                                "gastoldi_baletti": "Gastoldi",
+                                "handel_keyboard": "Handel keybord",
+                                "jc_bach_sonatas": "JC Bach",
+                                "kleine_geistliche_konzerte": "Kleine Geistliche Konzerte",
+                                "kozeluh_sonatas": "Kozeluh Sonata",
+                                "mahler_kindertotenlieder": "Mahler",
+                                "mendelssohn_quartets": "Mendelssohn",
+                                "monteverdi_madrigals": "Monteverdi Madrigals",
+                                "pergolesi_stabat_mater": "Pergolesi",
+                                "pleyel_quartets":"Pleyel Quartets",
+                                "rachmaninoff_piano": "Rachmaninoff",
+                                "ravel_piano": "Ravel",
+                                "scarlatti_sonatas": "Scarlatti Sonatas",
+                                "schubert_dances": "Schubert Dances",
+                                "schubert_winterreise": "Schubert Winterreise",
+                                "schulhoff_suite_dansante_en_jazz": "Schulhoff Suite",
+                                "sweelinck_keyboard": "Sweelinck Keyboard",
+                                "wagner_overtures": "Wagner Overtures",
+                                "wf_bach_sonatas": "WF Bach sonata"
+
                                 }
 
         # the horizontal lines for corpus mean: ________________________________________________________________________
@@ -1004,6 +1071,7 @@ class GraphsPrep:
         path_to_save = f"figures/CI1_lollipop_cloud_distr_{M_set_type}.html"
         fig.write_html(f"{path_to_save}", include_plotlyjs='cdn', full_html=True)
         print(f"Plot saved to {path_to_save}!")
+
     @staticmethod
     def CI1_lollipop_max_min_graphs():
         for x in ["M1", "M2", "M3", "M4", "M5", "M6"]:
@@ -1025,4 +1093,4 @@ if __name__ == '__main__':
     # result = piece_operation(piece_df= piece_df, chord_wise_operation=CI1_pc_content_indices_dict)
     # print(f'{result=}')
 
-    GraphsPrep.CI1_lollipop_graphs()
+    GraphsPrep.CI1_lollipop_max_min_graphs()

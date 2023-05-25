@@ -30,7 +30,7 @@ class SpelledChord:
         return instance
 
     def non_diatonic_pcs(self, key: Key) -> List[SpelledPitchClass]:
-        ndpcs = [x for x in self.pcs if x not in key.get_scale()]
+        ndpcs = [x for x in self.pcs if x not in key.get_scale_members()]
         return ndpcs
 
 

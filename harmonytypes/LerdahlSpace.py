@@ -22,7 +22,7 @@ class LerdahlDiatonicBasicSpace:
         a_root_space = [triad.root.convert_to(EnharmonicPitchClass)]
         b_fifth_space = [x.convert_to(EnharmonicPitchClass) for x in [triad.root, triad.fifth]]
         c_chord_space = [x.convert_to(EnharmonicPitchClass) for x in [triad.root, triad.third, triad.fifth]]
-        d_diatonic_space = [x.convert_to(EnharmonicPitchClass) for x in key.get_scale()]
+        d_diatonic_space = [x.convert_to(EnharmonicPitchClass) for x in key.get_scale_members()]
         e_chromatic_space = [EnharmonicPitchClass(i) for i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]]
 
         instance = cls(a_root_space=a_root_space,

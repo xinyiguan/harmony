@@ -20,6 +20,25 @@ class AbstractScale(ABC):
     def check_membership(self, pitch: EnharmonicPitchClass | SpelledPitchClass) -> bool:
         raise NotImplementedError
 
+@dataclass
+class ChromaticScale(AbstractScale):
+    tonic: SpelledPitchClass
+    members: List[SpelledPitchClass]
+    name: str
+
+    _chromatic_interval_sequence = ...
+    @classmethod
+    def from_tonic(cls, tonic: SpelledPitchClass, mode=None) -> Self:
+
+        members = aspc([tonic + x for x in ChromaticScale._chromatic_interval_sequence])
+        name = f"{tonic} chromatic scale"
+
+        instance = cls(tonic=tonic, members=members, name=name)
+        return instance
+
+    def check_membership(self, pitch: SpelledPitchClass) -> bool:
+        result = pitch in self.members
+        return result
 
 @dataclass
 class DiatonicScale(AbstractScale):
@@ -110,6 +129,9 @@ class HexatonicScale(AbstractScale):
     def check_membership(self, pitch: EnharmonicPitchClass) -> bool:
         result = pitch in self.members
         return result
+
+
+
 
 
 if __name__ == "__main__":

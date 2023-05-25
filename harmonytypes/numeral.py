@@ -181,7 +181,7 @@ class Numeral(AbstractNumeral):
         raise NotImplementedError
 
     def non_diatonic_spcs(self, reference_key: Key) -> List[SpelledPitchClass]:
-        ndpcs = [x for x in self.spcs if x not in reference_key.get_scale()]
+        ndpcs = [x for x in self.spcs if x not in reference_key.get_scale_members()]
         return ndpcs
 
     def key_if_tonicized(self) -> Key:

@@ -7,13 +7,14 @@ import numpy as np
 from pitchtypes import SpelledPitchClass, SpelledPitchClassArray, asic, aspc, SpelledIntervalClass
 
 from harmonytypes.degree import Degree
+from harmonytypes.scale import DiatonicScale
 from harmonytypes.theory import intervals_in_key_dict
 
 
 @dataclass(frozen=True)
 class Key:
     tonic: SpelledPitchClass
-    mode: Literal['major', 'natural_minor', 'melodic_minor', 'harmonic_minor',
+    mode: Literal['major', 'minor', 'melodic_minor', 'harmonic_minor',
     'ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian']
 
     key_interval_dict = {'major': asic(things=np.array(['P1', 'M2', 'M3', 'P4', 'P5', 'M6', 'M7'])),
@@ -55,7 +56,6 @@ class Key:
 
     def parallel(self) -> Key:
         raise NotImplementedError
-
     def relative(self) -> Key:
         if self.mode == 'major':
             new_tonic = self.tonic - SpelledIntervalClass('m3')
@@ -69,9 +69,20 @@ class Key:
     def accidentals(self) -> int:
         return abs(self.relative().tonic.fifths()) if self.mode == 'minor' else abs(self.tonic.fifths())
 
-    def get_scale(self) -> List[SpelledPitchClass]:
+    def get_scale_members(self) -> List[SpelledPitchClass]:
         intervals = self.key_interval_dict[self.mode]
-        scale = [self.tonic + intervals[i] for i in range(len(intervals))]
+        scale_mem = [self.tonic + intervals[i] for i in range(len(intervals))]
+        return scale_mem
+
+    def get_chromatic_scale_members(self)->List[SpelledPitchClass]:
+        raise NotImplementedError
+
+    def get_scale(self) -> DiatonicScale:
+        if self.mode == "major" or "minor":
+            scale = DiatonicScale.from_tonic(tonic=self.tonic, mode=self.mode)
+        else:
+            raise NotImplementedError
+
         return scale
 
     @staticmethod
@@ -104,12 +115,12 @@ class Key:
                 - E will be #2
                 - E# will be ##2
         """
-        scale_without_accidentals = [x.letter() for x in self.get_scale()]
+        scale_without_accidentals = [x.letter() for x in self.get_scale_members()]
         position_in_scale = scale_without_accidentals.index(spc.letter())
         degree_num_part = position_in_scale + 1
 
         target_alteration = spc.alteration()
-        original_scale_alteration = self.get_scale()[position_in_scale].alteration()
+        original_scale_alteration = self.get_scale_members()[position_in_scale].alteration()
         alteration_num = target_alteration - original_scale_alteration
 
         if alteration_num > 0:
@@ -131,10 +142,12 @@ class Key:
 
 
 def test():
-    key = Key.from_string(key_str='Db')
-    result = key.find_degree(spc=SpelledPitchClass("Bbb"))
-    print(f'{result=}')
+    key = Key.from_string(key_str='c')
+    # result = key.find_degree(spc=SpelledPitchClass("Bbb"))
+    # print(f'{result=}')
 
+    result = key.get_scale_members()
+    print(f'{result=}')
 
 if __name__ == '__main__':
     test()
